@@ -39,6 +39,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '新增房源', source: 'real', permission: 'house:create' },
       },
       {
+        path: 'houses/config',
+        name: 'FacilityTagConfig',
+        component: () => import('@/views/house/FacilityTagConfigPage.vue'),
+        meta: { title: '设施与标签配置', source: 'real' },
+      },
+      {
         path: 'locks',
         name: 'LockList',
         component: () => import('@/views/lock/LockListPage.vue'),
@@ -66,7 +72,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'leases',
         name: 'LeaseList',
         component: () => import('@/views/lease/LeaseListPage.vue'),
-        meta: { title: '租约管理', source: 'mock', permission: 'lease:list' },
+        meta: { title: '租约管理', source: 'real', permission: 'lease:list' },
       },
       {
         path: 'bills',

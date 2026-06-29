@@ -22,6 +22,7 @@ export const menuItems: MenuItem[] = [
     children: [
       { title: '房源列表', path: '/houses', source: 'real' },
       { title: '新增房源', path: '/houses/create', source: 'real' },
+      { title: '设施与标签配置', path: '/houses/config', source: 'real' },
     ],
   },
   {
@@ -35,7 +36,7 @@ export const menuItems: MenuItem[] = [
     icon: Document,
     children: [
       { title: '订单管理', path: '/orders', source: 'mock' },
-      { title: '租约管理', path: '/leases', source: 'mock' },
+      { title: '租约管理', path: '/leases', source: 'real' },
       { title: '账单管理', path: '/bills', source: 'mock' },
       { title: '报修管理', path: '/repairs', source: 'mock' },
     ],
