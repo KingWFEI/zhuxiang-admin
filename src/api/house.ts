@@ -98,6 +98,7 @@ export interface HouseItem {
 export interface CreateHouseRequest {
   title: string
   coverImage: string
+  imageUrls: string[]
   location: string
   communityId: string
   landlordId: string
@@ -121,6 +122,11 @@ export interface CreateHouseRequest {
   isSelfViewingSupported?: boolean
 }
 
+export interface UploadImageResult {
+  url: string
+  fileId: string
+}
+
 export async function getHouseList() {
   const response = await request.get<never, ApiResponse<HouseItem[]>>('/admin/houses')
   return unwrapApiResponse(response)
@@ -128,6 +134,17 @@ export async function getHouseList() {
 
 export async function createHouse(data: CreateHouseRequest) {
   const response = await request.post<never, ApiResponse<HouseItem>>('/admin/houses', data)
+  return unwrapApiResponse(response)
+}
+
+export async function uploadHouseImage(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await request.post<never, ApiResponse<UploadImageResult>>(
+    '/admin/files/house-images/upload',
+    formData,
+    { timeout: 30000 },
+  )
   return unwrapApiResponse(response)
 }
 
