@@ -75,6 +75,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '租约管理', source: 'real', permission: 'lease:list' },
       },
       {
+        path: 'terminations',
+        name: 'TerminationList',
+        component: () => import('@/views/termination/TerminationListPage.vue'),
+        meta: { title: '退租管理', source: 'real', permission: 'termination:list' },
+      },
+      {
         path: 'bills',
         name: 'BillList',
         component: () => import('@/views/bill/BillListPage.vue'),

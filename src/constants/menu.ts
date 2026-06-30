@@ -37,6 +37,7 @@ export const menuItems: MenuItem[] = [
     children: [
       { title: '订单管理', path: '/orders', source: 'mock' },
       { title: '租约管理', path: '/leases', source: 'real' },
+      { title: '退租管理', path: '/terminations', source: 'real' },
       { title: '账单管理', path: '/bills', source: 'mock' },
       { title: '报修管理', path: '/repairs', source: 'mock' },
     ],
