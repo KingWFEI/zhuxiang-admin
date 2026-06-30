@@ -65,6 +65,7 @@ export interface HouseItem {
   id: string
   title: string
   coverImage: string | null
+  imageUrls?: string[] | null
   location: string | null
   communityId: string | null
   address: string | null
@@ -122,6 +123,33 @@ export interface CreateHouseRequest {
   isSelfViewingSupported?: boolean
 }
 
+export interface UpdateHouseRequest {
+  title?: string
+  coverImage?: string
+  imageUrls?: string[]
+  location?: string
+  communityId?: string
+  landlordId?: string
+  price?: number
+  rentType?: string
+  address?: string
+  building?: string
+  unit?: string
+  room?: string
+  deposit?: number
+  paymentMethod?: string
+  roomType?: string
+  area?: number
+  floor?: string
+  orientation?: string
+  decoration?: string
+  availableDate?: string
+  metro?: string
+  description?: string
+  isSmartLockSupported?: boolean
+  isSelfViewingSupported?: boolean
+}
+
 export interface UploadImageResult {
   url: string
   fileId: string
@@ -134,6 +162,21 @@ export async function getHouseList() {
 
 export async function createHouse(data: CreateHouseRequest) {
   const response = await request.post<never, ApiResponse<HouseItem>>('/admin/houses', data)
+  return unwrapApiResponse(response)
+}
+
+export async function publishHouse(houseId: string) {
+  const response = await request.put<never, ApiResponse<HouseItem>>(`/admin/houses/${houseId}/publish`)
+  return unwrapApiResponse(response)
+}
+
+export async function offlineHouse(houseId: string) {
+  const response = await request.put<never, ApiResponse<HouseItem>>(`/admin/houses/${houseId}/offline`)
+  return unwrapApiResponse(response)
+}
+
+export async function updateHouse(houseId: string, data: UpdateHouseRequest) {
+  const response = await request.put<never, ApiResponse<HouseItem>>(`/admin/houses/${houseId}`, data)
   return unwrapApiResponse(response)
 }
 
