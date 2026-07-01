@@ -39,6 +39,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '新增房源', source: 'real', permission: 'house:create' },
       },
       {
+        path: 'houses/:id/edit',
+        name: 'HouseEdit',
+        component: () => import('@/views/house/HouseEditPage.vue'),
+        meta: { title: '编辑房源', source: 'real' },
+      },
+      {
         path: 'houses/config',
         name: 'FacilityTagConfig',
         component: () => import('@/views/house/FacilityTagConfigPage.vue'),
@@ -57,10 +63,16 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '消息中心', source: 'real' },
       },
       {
+        path: 'messages/send',
+        name: 'MessageSend',
+        component: () => import('@/views/message/SendMessagePage.vue'),
+        meta: { title: '发送系统消息', source: 'real' },
+      },
+      {
         path: 'users',
         name: 'UserList',
         component: () => import('@/views/user/UserListPage.vue'),
-        meta: { title: '用户管理', source: 'mock', permission: 'user:list' },
+        meta: { title: '用户管理', source: 'real', permission: 'user:list' },
       },
       {
         path: 'orders',

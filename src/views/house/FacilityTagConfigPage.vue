@@ -20,6 +20,7 @@ import {
 } from '@/api/house'
 import DataSourceNotice from '@/components/DataSourceNotice.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { facilityIconOptions, facilityIconCategories } from '@/constants/facilityIcons'
 
 // ---- state ----
 const activeTab = ref('facility')
@@ -298,7 +299,11 @@ async function handleTagDelete(item: HouseTagItem) {
           <el-input v-model="facilityForm.name" placeholder="例如：Wi-Fi" maxlength="32" />
         </el-form-item>
         <el-form-item label="图标 Key">
-          <el-input v-model="facilityForm.iconKey" placeholder="例如：wifi" maxlength="32" />
+          <el-select v-model="facilityForm.iconKey" filterable allow-create clearable placeholder="选择图标，或输入自定义 Key" style="width: 100%">
+            <el-option-group v-for="cat in facilityIconCategories" :key="cat" :label="cat">
+              <el-option v-for="icon in facilityIconOptions.filter(i => i.category === cat)" :key="icon.key" :label="`${icon.label} (${icon.key})`" :value="icon.key" />
+            </el-option-group>
+          </el-select>
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="facilityForm.sortOrder" :min="0" :max="9999" controls-position="right" />
