@@ -105,6 +105,8 @@ export interface CreateHouseRequest {
   landlordId: string
   price: number
   rentType: string
+  facilityIds: string[]
+  tagIds: string[]
   address?: string
   building?: string
   unit?: string
@@ -132,6 +134,8 @@ export interface UpdateHouseRequest {
   landlordId?: string
   price?: number
   rentType?: string
+  facilityIds?: string[]
+  tagIds?: string[]
   address?: string
   building?: string
   unit?: string
@@ -175,8 +179,18 @@ export async function offlineHouse(houseId: string) {
   return unwrapApiResponse(response)
 }
 
+export async function onlineHouse(houseId: string) {
+  const response = await request.put<never, ApiResponse<HouseItem>>(`/admin/houses/${houseId}/online`)
+  return unwrapApiResponse(response)
+}
+
 export async function updateHouse(houseId: string, data: UpdateHouseRequest) {
   const response = await request.put<never, ApiResponse<HouseItem>>(`/admin/houses/${houseId}`, data)
+  return unwrapApiResponse(response)
+}
+
+export async function getHouseDetail(houseId: string) {
+  const response = await request.get<never, ApiResponse<HouseItem>>(`/admin/houses/${houseId}`)
   return unwrapApiResponse(response)
 }
 

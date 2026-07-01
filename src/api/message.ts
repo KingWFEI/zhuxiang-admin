@@ -60,3 +60,15 @@ export function clearReadMessages() {
 export function deleteMessage(id: string) {
   return unwrap(request.delete<never, ApiResponse<boolean>>(`/messages/${id}`))
 }
+
+export interface SendMessageRequest {
+  userIds: string[]
+  title: string
+  content: string
+  actionType: string
+  actionTarget: string
+}
+
+export function sendMessage(data: SendMessageRequest) {
+  return unwrap(request.post<never, ApiResponse<number>>('/admin/messages', data))
+}

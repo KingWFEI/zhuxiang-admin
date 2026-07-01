@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { onMounted, reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Check, Plus, Delete, Picture } from '@element-plus/icons-vue'
 import DataSourceNotice from '@/components/DataSourceNotice.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { createHouse, uploadHouseImage, type CreateHouseRequest } from '@/api/house'
+import {
+  createHouse,
+  getFacilityDictionary,
+  getHouseTagDictionary,
+  uploadHouseImage,
+  type CreateHouseRequest,
+  type FacilityItem,
+  type HouseTagItem,
+} from '@/api/house'
 
 interface ImageItem {
   uid: string
@@ -35,11 +43,18 @@ const houseForm = reactive<HouseForm>({
   unit: '', room: '', paymentMethod: '押一付一', roomType: '', area: undefined,
   floor: '', orientation: '', decoration: '', availableDate: '', metro: '', description: '',
   isSmartLockSupported: false, isSelfViewingSupported: false,
+  facilityIds: [],
+  tagIds: [],
 })
 
 const images = ref<ImageItem[]>([])
 const coverUploading = ref(false)
 const extraUploading = ref(false)
+
+const facilities = ref<FacilityItem[]>([])
+const tags = ref<HouseTagItem[]>([])
+const facilityLoading = ref(false)
+const tagLoading = ref(false)
 
 const hasCover = computed(() => images.value.length > 0)
 const coverUrl = computed(() => images.value[0]?.url ?? '')
@@ -137,6 +152,7 @@ function validateImages(): boolean {
 async function handleSubmit() {
   if (submitting.value) return
   if (!validateImages()) return
+  if (!validateFacilityTags()) return
   if (!(await formRef.value?.validate().catch(() => false))) return
 
   submitting.value = true
@@ -162,7 +178,36 @@ function handleReset() {
   formRef.value?.resetFields()
   images.value = []
   houseForm.coverImage = ''
+  houseForm.facilityIds = []
+  houseForm.tagIds = []
 }
+
+function validateFacilityTags(): boolean {
+  if (houseForm.facilityIds.length === 0) {
+    ElMessage.error('请至少选择一项设施')
+    return false
+  }
+  if (houseForm.tagIds.length === 0) {
+    ElMessage.error('请至少选择一个标签')
+    return false
+  }
+  return true
+}
+
+async function fetchDictionaries() {
+  facilityLoading.value = true
+  tagLoading.value = true
+  try {
+    const [facData, tagData] = await Promise.all([getFacilityDictionary(), getHouseTagDictionary()])
+    facilities.value = facData.filter(f => f.enabled)
+    tags.value = tagData.filter(t => t.enabled)
+  } finally {
+    facilityLoading.value = false
+    tagLoading.value = false
+  }
+}
+
+onMounted(fetchDictionaries)
 </script>
 
 <template>
@@ -269,6 +314,26 @@ function handleReset() {
           </el-card>
 
           <el-card class="surface-card" shadow="never">
+            <template #header><strong class="table-header__title">配套设施</strong></template>
+            <div v-loading="facilityLoading" class="check-group">
+              <el-checkbox-group v-model="houseForm.facilityIds">
+                <el-checkbox v-for="f in facilities" :key="f.id" :value="f.id" :label="f.id">{{ f.name }}</el-checkbox>
+              </el-checkbox-group>
+              <el-empty v-if="!facilityLoading && !facilities.length" description="暂无可用设施" :image-size="48" />
+            </div>
+          </el-card>
+
+          <el-card class="surface-card" shadow="never">
+            <template #header><strong class="table-header__title">房源标签</strong></template>
+            <div v-loading="tagLoading" class="check-group">
+              <el-checkbox-group v-model="houseForm.tagIds">
+                <el-checkbox v-for="t in tags" :key="t.id" :value="t.id" :label="t.id">{{ t.name }}</el-checkbox>
+              </el-checkbox-group>
+              <el-empty v-if="!tagLoading && !tags.length" description="暂无可用标签" :image-size="48" />
+            </div>
+          </el-card>
+
+          <el-card class="surface-card" shadow="never">
             <template #header><strong class="table-header__title">房源归属</strong></template>
             <el-form-item label="房东用户 ID" prop="landlordId"><el-input v-model="houseForm.landlordId" placeholder="后端暂未提供房东选择接口" /></el-form-item>
           </el-card>
@@ -357,6 +422,7 @@ function handleReset() {
 }
 .image-hint { margin: 8px 0 0; color: #a8b2ad; font-size: 11px; line-height: 1.5; }
 
+.check-group { min-height: 40px; .el-checkbox { display: flex; margin-bottom: 8px; } }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid #e6ebe9; }.switch-row:last-child { border-bottom: 0; }.switch-row div { display: flex; flex-direction: column; }.switch-row strong { font-size: 13px; }.switch-row span { margin-top: 4px; color: #86928c; font-size: 11px; line-height: 1.4; }.form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 1050px) { .form-layout { grid-template-columns: 1fr; }.form-aside { display: grid; grid-template-columns: 1fr 1fr; }.form-actions { grid-column: 1 / -1; } }
 @media (max-width: 640px) { .form-grid--two, .form-aside { grid-template-columns: 1fr; }.span-two { grid-column: auto; }.form-actions { grid-column: auto; }.form-actions .el-button { flex: 1; } }
