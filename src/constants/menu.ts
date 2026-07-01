@@ -46,8 +46,9 @@ export const menuItems: MenuItem[] = [
     title: '客户与协同',
     icon: User,
     children: [
-      { title: '用户管理', path: '/users', source: 'mock' },
+      { title: '用户管理', path: '/users', source: 'real' },
       { title: '消息中心', path: '/messages', source: 'real' },
+      { title: '发送系统消息', path: '/messages/send', source: 'real' },
     ],
   },
   {

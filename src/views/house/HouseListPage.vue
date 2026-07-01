@@ -5,35 +5,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { OfficeBuilding, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import DataSourceNotice from '@/components/DataSourceNotice.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { getHouseList, offlineHouse, publishHouse, updateHouse, type HouseItem, type LockDeviceView, type UpdateHouseRequest } from '@/api/house'
+import { getHouseList, offlineHouse, onlineHouse, publishHouse, type HouseItem, type LockDeviceView } from '@/api/house'
 import { formatDateTime, formatFenCurrency } from '@/utils/format'
-
-interface EditHouseForm {
-  title: string
-  location: string
-  communityId: string
-  landlordId: string
-  rentType: string
-  price: number | undefined
-  deposit: number | undefined
-  paymentMethod: string
-  address: string
-  building: string
-  unit: string
-  room: string
-  roomType: string
-  area: number | undefined
-  floor: string
-  orientation: string
-  decoration: string
-  availableDate: string
-  metro: string
-  coverImage: string
-  imageUrlsText: string
-  description: string
-  isSmartLockSupported: boolean
-  isSelfViewingSupported: boolean
-}
 
 const router = useRouter()
 const loading = ref(false)
@@ -42,39 +15,11 @@ const houseDrawerVisible = ref(false)
 const currentHouse = ref<HouseItem | null>(null)
 const lockDrawerVisible = ref(false)
 const currentLock = ref<LockDeviceView | null>(null)
-const editDialogVisible = ref(false)
-const editingHouse = ref<HouseItem | null>(null)
-const updating = ref(false)
 const searchForm = reactive({ keyword: '', status: '', rentType: '' })
 const pagination = reactive({ page: 1, pageSize: 10 })
 const publishingIds = ref<Set<string>>(new Set())
 const offliningIds = ref<Set<string>>(new Set())
-const editForm = reactive<EditHouseForm>({
-  title: '',
-  location: '',
-  communityId: '',
-  landlordId: '',
-  rentType: '',
-  price: undefined,
-  deposit: undefined,
-  paymentMethod: '',
-  address: '',
-  building: '',
-  unit: '',
-  room: '',
-  roomType: '',
-  area: undefined,
-  floor: '',
-  orientation: '',
-  decoration: '',
-  availableDate: '',
-  metro: '',
-  coverImage: '',
-  imageUrlsText: '',
-  description: '',
-  isSmartLockSupported: false,
-  isSelfViewingSupported: false,
-})
+const onliningIds = ref<Set<string>>(new Set())
 
 const statusOptions = [
   { label: '草稿', value: 'draft' },
@@ -121,90 +66,8 @@ function handleSearch() { pagination.page = 1 }
 function handleReset() { Object.assign(searchForm, { keyword: '', status: '', rentType: '' }); pagination.page = 1 }
 function openHouseDrawer(house: HouseItem) { currentHouse.value = house; houseDrawerVisible.value = true }
 function openLockDrawer(lock: LockDeviceView) { currentLock.value = lock; lockDrawerVisible.value = true }
-function openEditDialog(house: HouseItem) {
-  editingHouse.value = house
-  Object.assign(editForm, {
-    title: house.title || '',
-    location: house.location || '',
-    communityId: house.communityId || '',
-    landlordId: house.landlordId || '',
-    rentType: house.rentType || '',
-    price: house.price == null ? undefined : house.price / 100,
-    deposit: house.deposit == null ? undefined : house.deposit / 100,
-    paymentMethod: house.paymentMethod || '',
-    address: house.address || '',
-    building: house.building || '',
-    unit: house.unit || '',
-    room: house.room || '',
-    roomType: house.roomType || '',
-    area: house.area ?? undefined,
-    floor: house.floor || '',
-    orientation: house.orientation || '',
-    decoration: house.decoration || '',
-    availableDate: house.availableDate || '',
-    metro: house.metro || '',
-    coverImage: house.coverImage || '',
-    imageUrlsText: (house.imageUrls || []).join('\n'),
-    description: house.description || '',
-    isSmartLockSupported: house.isSmartLockSupported,
-    isSelfViewingSupported: house.isSelfViewingSupported,
-  })
-  editDialogVisible.value = true
-}
-
-function buildUpdatePayload(): UpdateHouseRequest {
-  const imageUrls = editForm.imageUrlsText
-    .split(/[\n,，]/)
-    .map((url) => url.trim())
-    .filter(Boolean)
-  const payload: UpdateHouseRequest = {
-    title: editForm.title.trim(),
-    location: editForm.location.trim(),
-    communityId: editForm.communityId.trim(),
-    landlordId: editForm.landlordId.trim(),
-    rentType: editForm.rentType,
-    price: editForm.price == null ? undefined : Math.round(editForm.price * 100),
-    deposit: editForm.deposit == null ? undefined : Math.round(editForm.deposit * 100),
-    paymentMethod: editForm.paymentMethod.trim(),
-    address: editForm.address.trim(),
-    building: editForm.building.trim(),
-    unit: editForm.unit.trim(),
-    room: editForm.room.trim(),
-    roomType: editForm.roomType.trim(),
-    area: editForm.area,
-    floor: editForm.floor.trim(),
-    orientation: editForm.orientation.trim(),
-    decoration: editForm.decoration.trim(),
-    availableDate: editForm.availableDate,
-    metro: editForm.metro.trim(),
-    coverImage: editForm.coverImage.trim(),
-    imageUrls: imageUrls.length ? imageUrls : undefined,
-    description: editForm.description.trim(),
-    isSmartLockSupported: editForm.isSmartLockSupported,
-    isSelfViewingSupported: editForm.isSelfViewingSupported,
-  }
-
-  Object.keys(payload).forEach((key) => {
-    const value = payload[key as keyof UpdateHouseRequest]
-    if (value === '' || value == null) delete payload[key as keyof UpdateHouseRequest]
-  })
-  return payload
-}
-
-async function handleUpdateHouse() {
-  if (!editingHouse.value || updating.value) return
-  const payload = buildUpdatePayload()
-  if (!Object.keys(payload).length) return ElMessage.warning('请至少填写一项修改内容')
-
-  updating.value = true
-  try {
-    await updateHouse(editingHouse.value.id, payload)
-    ElMessage.success('房源已更新')
-    editDialogVisible.value = false
-    await fetchHouseList()
-  } finally {
-    updating.value = false
-  }
+function openEditPage(house: HouseItem) {
+  router.push(`/houses/${house.id}/edit`)
 }
 
 async function handlePublish(house: HouseItem) {
@@ -226,7 +89,7 @@ async function handlePublish(house: HouseItem) {
 }
 
 async function handleOffline(house: HouseItem) {
-  await ElMessageBox.confirm(`确认下架房源“${house.title}”吗？下架后将不再对外展示。`, '下架房源', {
+  await ElMessageBox.confirm(`确认下架房源”${house.title}”吗？下架后将不再对外展示。`, '下架房源', {
     type: 'warning',
     confirmButtonText: '确认下架',
     cancelButtonText: '取消',
@@ -240,6 +103,24 @@ async function handleOffline(house: HouseItem) {
     const nextIds = new Set(offliningIds.value)
     nextIds.delete(house.id)
     offliningIds.value = nextIds
+  }
+}
+
+async function handleOnline(house: HouseItem) {
+  await ElMessageBox.confirm(`确认重新上架房源”${house.title}”吗？上架后将恢复对外展示。`, '上架房源', {
+    type: 'warning',
+    confirmButtonText: '确认上架',
+    cancelButtonText: '取消',
+  })
+  onliningIds.value = new Set(onliningIds.value).add(house.id)
+  try {
+    await onlineHouse(house.id)
+    ElMessage.success('房源已上架')
+    await fetchHouseList()
+  } finally {
+    const nextIds = new Set(onliningIds.value)
+    nextIds.delete(house.id)
+    onliningIds.value = nextIds
   }
 }
 
@@ -307,7 +188,7 @@ onMounted(fetchHouseList)
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openHouseDrawer(row)">查看</el-button>
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button link type="primary" @click="openEditPage(row)">编辑</el-button>
             <el-button
               v-if="row.status === 'draft'"
               link
@@ -326,56 +207,20 @@ onMounted(fetchHouseList)
             >
               下架
             </el-button>
+            <el-button
+              v-if="row.status === 'offline'"
+              link
+              type="success"
+              :loading="onliningIds.has(row.id)"
+              @click="handleOnline(row)"
+            >
+              上架
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="pagination-wrapper"><el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="filteredList.length" :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next" /></div>
     </el-card>
-
-    <el-dialog v-model="editDialogVisible" title="编辑房源" width="min(760px, 92vw)">
-      <el-form :model="editForm" label-position="top">
-        <div class="edit-form-grid">
-          <el-form-item label="房源标题"><el-input v-model="editForm.title" maxlength="80" show-word-limit /></el-form-item>
-          <el-form-item label="租赁类型">
-            <el-select v-model="editForm.rentType" clearable>
-              <el-option v-for="item in rentTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="月租金（元）"><el-input-number v-model="editForm.price" :min="0" :max="1000000" :step="100" controls-position="right" /></el-form-item>
-          <el-form-item label="押金（元）"><el-input-number v-model="editForm.deposit" :min="0" :max="1000000" :step="100" controls-position="right" /></el-form-item>
-          <el-form-item label="区域或商圈"><el-input v-model="editForm.location" /></el-form-item>
-          <el-form-item label="小区 ID"><el-input v-model="editForm.communityId" /></el-form-item>
-          <el-form-item label="详细地址" class="span-two"><el-input v-model="editForm.address" /></el-form-item>
-          <el-form-item label="楼栋"><el-input v-model="editForm.building" /></el-form-item>
-          <el-form-item label="单元"><el-input v-model="editForm.unit" /></el-form-item>
-          <el-form-item label="房号"><el-input v-model="editForm.room" /></el-form-item>
-          <el-form-item label="楼层"><el-input v-model="editForm.floor" /></el-form-item>
-          <el-form-item label="户型"><el-input v-model="editForm.roomType" /></el-form-item>
-          <el-form-item label="面积（㎡）"><el-input-number v-model="editForm.area" :min="0" :precision="1" controls-position="right" /></el-form-item>
-          <el-form-item label="朝向"><el-input v-model="editForm.orientation" /></el-form-item>
-          <el-form-item label="装修"><el-input v-model="editForm.decoration" /></el-form-item>
-          <el-form-item label="可入住日期"><el-date-picker v-model="editForm.availableDate" type="date" value-format="YYYY-MM-DD" clearable /></el-form-item>
-          <el-form-item label="付款方式"><el-input v-model="editForm.paymentMethod" /></el-form-item>
-          <el-form-item label="地铁信息"><el-input v-model="editForm.metro" /></el-form-item>
-          <el-form-item label="房东用户 ID"><el-input v-model="editForm.landlordId" /></el-form-item>
-          <el-form-item label="封面图 URL" class="span-two"><el-input v-model="editForm.coverImage" /></el-form-item>
-          <el-form-item label="房源图片 URL 列表" class="span-two">
-            <el-input v-model="editForm.imageUrlsText" type="textarea" :rows="3" placeholder="多个图片 URL 可换行或用逗号分隔" />
-          </el-form-item>
-          <el-form-item label="房源说明" class="span-two"><el-input v-model="editForm.description" type="textarea" :rows="4" maxlength="1000" show-word-limit /></el-form-item>
-          <el-form-item label="智能能力" class="span-two">
-            <div class="edit-switches">
-              <el-checkbox v-model="editForm.isSmartLockSupported">支持智能门锁</el-checkbox>
-              <el-checkbox v-model="editForm.isSelfViewingSupported">支持自助看房</el-checkbox>
-            </div>
-          </el-form-item>
-        </div>
-      </el-form>
-      <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="updating" @click="handleUpdateHouse">保存</el-button>
-      </template>
-    </el-dialog>
 
     <el-drawer v-model="houseDrawerVisible" title="房源详情" size="min(560px, 92vw)">
       <template v-if="currentHouse">
@@ -414,9 +259,4 @@ onMounted(fetchHouseList)
 .house-cell strong, .house-cell span, .house-cell small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .house-cell strong { font-size: 13px; }.house-cell span { margin-top: 3px; color: #66736d; font-size: 12px; }.house-cell small { margin-top: 2px; color: #9aa49f; font-size: 10px; }
 .detail-cover { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; background: #eef2f0; }.detail-title { margin: 16px 0; font-size: 20px; letter-spacing: 0; }
-.edit-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
-.edit-form-grid .span-two { grid-column: 1 / -1; }
-.edit-form-grid :deep(.el-select), .edit-form-grid :deep(.el-input-number), .edit-form-grid :deep(.el-date-editor) { width: 100%; }
-.edit-switches { display: flex; flex-wrap: wrap; gap: 16px; }
-@media (max-width: 640px) { .edit-form-grid { grid-template-columns: 1fr; }.edit-form-grid .span-two { grid-column: auto; } }
 </style>
