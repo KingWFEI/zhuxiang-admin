@@ -90,7 +90,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'repairs',
         name: 'RepairList',
         component: () => import('@/views/repair/RepairListPage.vue'),
-        meta: { title: '报修管理', source: 'mock', permission: 'repair:list' },
+        meta: { title: '报修管理', source: 'real', permission: 'repair:list' },
       },
       {
         path: 'system',
