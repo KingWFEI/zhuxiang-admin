@@ -351,16 +351,17 @@ onMounted(fetchTerminationList)
             >
               补材料
             </el-button>
-            <el-button v-if="canReview(row)" link type="danger" @click="openAction('reject', row)"
-              >驳回</el-button
-            >
+            <el-button v-if="canReview(row)" link type="danger" @click="openAction('reject', row)">
+              驳回
+            </el-button>
             <el-button
               v-if="canSettle(row)"
               link
               type="primary"
               @click="openAction('settlement', row)"
-              >结算</el-button
             >
+              结算
+            </el-button>
             <el-button
               v-if="canComplete(row)"
               link
@@ -397,44 +398,62 @@ onMounted(fetchTerminationList)
               {{ statusLabel(currentApplication.status) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="房源">{{
-            currentApplication.houseName || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="合同编号">{{
-            currentApplication.contractNo || '-'
-          }}</el-descriptions-item>
+          <el-descriptions-item label="房源">
+            {{
+              currentApplication.houseName || '-'
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="合同编号">
+            {{
+              currentApplication.contractNo || '-'
+            }}
+          </el-descriptions-item>
           <el-descriptions-item label="租客">
             {{ currentApplication.tenantName || currentApplication.contactName || '-' }}（{{
               maskPhone(currentApplication.tenantPhone || currentApplication.contactPhone || '')
             }}）
           </el-descriptions-item>
-          <el-descriptions-item label="期望退租日期">{{
-            currentApplication.expectedMoveOutDate || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="是否已搬离">{{
-            currentApplication.hasMovedOut ? '是' : '否'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="退租原因">{{
-            currentApplication.reason || '-'
-          }}</el-descriptions-item>
-          <el-descriptions-item label="备注">{{
-            currentApplication.remark || '-'
-          }}</el-descriptions-item>
+          <el-descriptions-item label="期望退租日期">
+            {{
+              currentApplication.expectedMoveOutDate || '-'
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="是否已搬离">
+            {{
+              currentApplication.hasMovedOut ? '是' : '否'
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="退租原因">
+            {{
+              currentApplication.reason || '-'
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="备注">
+            {{
+              currentApplication.remark || '-'
+            }}
+          </el-descriptions-item>
           <el-descriptions-item v-if="currentApplication.rejectReason" label="驳回原因">
             {{ currentApplication.rejectReason }}
           </el-descriptions-item>
           <el-descriptions-item v-if="currentApplication.supplementReason" label="补充材料说明">
             {{ currentApplication.supplementReason }}
           </el-descriptions-item>
-          <el-descriptions-item label="结算金额">{{
-            formatFenCurrency(settlementAmountOf(currentApplication))
-          }}</el-descriptions-item>
-          <el-descriptions-item label="应退金额">{{
-            formatFenCurrency(currentApplication.refundAmount)
-          }}</el-descriptions-item>
-          <el-descriptions-item label="申请时间">{{
-            formatDateTime(currentApplication.createdAt)
-          }}</el-descriptions-item>
+          <el-descriptions-item label="结算金额">
+            {{
+              formatFenCurrency(settlementAmountOf(currentApplication))
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="应退金额">
+            {{
+              formatFenCurrency(currentApplication.refundAmount)
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="申请时间">
+            {{
+              formatDateTime(currentApplication.createdAt)
+            }}
+          </el-descriptions-item>
         </el-descriptions>
 
         <div v-if="currentApplication.attachments?.length" class="attachment-list">

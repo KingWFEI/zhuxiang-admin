@@ -14,9 +14,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         // target: 'http://10.143.183.205:8000',
-        target: 'http://10.143.183.205:8000',
+        target: 'http://10.20.68.159:8000',
         changeOrigin: true,
-      },
+      }
     },
   },
 })
