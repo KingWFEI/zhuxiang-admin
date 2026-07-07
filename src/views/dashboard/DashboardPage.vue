@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Plus, Refresh } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import { getHouseList, type HouseItem } from '@/api/house'
 import { formatDateTime, formatFenCurrency } from '@/utils/format'
@@ -57,10 +57,7 @@ onMounted(fetchDashboardData)
       </template>
     </PageHeader>
 
-    <DataSourceNotice
-      type="mixed"
-      detail="房源总量、门锁绑定、浏览量和平均租金来自真实接口；租约、账单、报修及趋势为模拟数据。"
-    />
+
     <el-alert v-if="houseRequestFailed" title="房源接口暂时不可用，真实指标未展示。" type="error" :closable="false" show-icon />
 
     <section class="metric-grid">

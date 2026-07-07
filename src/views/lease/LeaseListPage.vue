@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import { getLeaseList, type LeaseItem } from '@/api/lease'
 import type { PageData } from '@/api/types'
@@ -86,7 +86,7 @@ onMounted(fetchLeaseList)
         <el-button :icon="Refresh" @click="fetchLeaseList">刷新</el-button>
       </template>
     </PageHeader>
-    <DataSourceNotice type="real" detail="列表来自 GET /admin/leases，支持按状态和关键词筛选，支持分页查询。" />
+
 
     <el-card class="surface-card" shadow="never">
       <el-form :model="searchForm" inline @submit.prevent="handleSearch">

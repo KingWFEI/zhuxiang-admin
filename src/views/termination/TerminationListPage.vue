@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import {
   approveTermination,
@@ -243,10 +243,7 @@ onMounted(fetchTerminationList)
         <el-button :icon="Refresh" @click="fetchTerminationList">刷新</el-button>
       </template>
     </PageHeader>
-    <DataSourceNotice
-      type="real"
-      detail="列表来自 GET /admin/termination-applications，操作接口覆盖审核、驳回、补充材料、结算和完成。"
-    />
+
 
     <el-card class="surface-card" shadow="never">
       <el-form :model="searchForm" inline @submit.prevent="handleSearch">

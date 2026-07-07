@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import { DataAnalysis, Document, House, Key, Setting, User } from '@element-plus/icons-vue'
+import { DataAnalysis, Document, House, Key, Service, Setting, User } from '@element-plus/icons-vue'
 
 export interface MenuItem {
   title: string
@@ -50,6 +50,14 @@ export const menuItems: MenuItem[] = [
       { title: '用户管理', path: '/users', source: 'real' },
       { title: '消息中心', path: '/messages', source: 'real' },
       { title: '发送系统消息', path: '/messages/send', source: 'real' },
+    ],
+  },
+  {
+    title: '智能客服',
+    icon: Service,
+    children: [
+      { title: '知识库管理', path: '/customer-service/kb', source: 'real' },
+      { title: '客服会话记录', path: '/customer-service/sessions', source: 'real' },
     ],
   },
   {

@@ -3,9 +3,10 @@ import { onMounted, reactive, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Check, Plus, Delete, Picture } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+import { ArrowLeft, Check, Plus, Delete, Picture, Location } from '@element-plus/icons-vue'
+
 import PageHeader from '@/components/PageHeader.vue'
+import AmapLocationPicker, { type LocationConfirmPayload } from '@/components/AmapLocationPicker.vue'
 import {
   getHouseDetail,
   getHouseAttributes,
@@ -48,6 +49,7 @@ const houseForm = reactive<{
   metro: string; description: string
   isSmartLockSupported: boolean; isSelfViewingSupported: boolean
   facilityIds: string[]; tagIds: string[]
+  longitude: number | undefined; latitude: number | undefined
 }>({
   title: '', coverImage: '', location: '', communityId: '', landlordId: '',
   price: undefined, deposit: undefined, rentType: '', address: '', building: '',
@@ -55,6 +57,7 @@ const houseForm = reactive<{
   floor: '', orientation: '', decoration: '', availableDate: '', metro: '', description: '',
   isSmartLockSupported: false, isSelfViewingSupported: false,
   facilityIds: [], tagIds: [],
+  longitude: undefined, latitude: undefined,
 })
 
 const images = ref<ImageItem[]>([])
@@ -64,6 +67,8 @@ const extraUploading = ref(false)
 const facilities = ref<FacilityItem[]>([])
 const tags = ref<HouseTagItem[]>([])
 const dictLoading = ref(false)
+const pickingLocation = ref(false)
+const geoInfo = ref<LocationConfirmPayload | null>(null)
 
 const hasCover = computed(() => images.value.length > 0)
 const coverUrl = computed(() => images.value[0]?.url ?? '')
@@ -174,7 +179,25 @@ async function fetchInitData() {
       isSelfViewingSupported: house.isSelfViewingSupported,
       facilityIds: attrs?.facilities?.map(f => f.id) ?? [],
       tagIds: attrs?.tags?.map(t => t.id) ?? [],
+      longitude: house.longitude ?? undefined,
+      latitude: house.latitude ?? undefined,
     })
+
+    // 从已有数据回填地址信息展示
+    if (house.longitude != null && house.latitude != null) {
+      geoInfo.value = {
+        lng: house.longitude,
+        lat: house.latitude,
+        address: house.address ?? '',
+        province: house.province ?? '',
+        city: house.city ?? '',
+        district: house.district ?? '',
+        township: house.township ?? '',
+        neighborhood: house.neighborhood ?? '',
+      }
+    } else {
+      geoInfo.value = null
+    }
 
     const existingUrls = house.imageUrls ?? []
     if (house.coverImage && !existingUrls.includes(house.coverImage)) {
@@ -219,12 +242,40 @@ function buildUpdatePayload(): UpdateHouseRequest {
     imageUrls: images.value.map(i => i.url),
     facilityIds: houseForm.facilityIds,
     tagIds: houseForm.tagIds,
+    longitude: houseForm.longitude,
+    latitude: houseForm.latitude,
+    province: geoInfo.value?.province,
+    city: geoInfo.value?.city,
+    district: geoInfo.value?.district,
+    township: geoInfo.value?.township,
+    neighborhood: geoInfo.value?.neighborhood,
+  }
+  // 仅当经纬度都有值时才传给后端
+  if (payload.longitude == null || payload.latitude == null) {
+    delete payload.longitude
+    delete payload.latitude
+    delete payload.province
+    delete payload.city
+    delete payload.district
+    delete payload.township
+    delete payload.neighborhood
   }
   Object.keys(payload).forEach(key => {
     const v = payload[key as keyof UpdateHouseRequest]
     if (v === '' || v == null) delete payload[key as keyof UpdateHouseRequest]
   })
   return payload
+}
+
+async function handleLocationConfirm(payload: LocationConfirmPayload) {
+  houseForm.longitude = payload.lng
+  houseForm.latitude = payload.lat
+  geoInfo.value = payload
+  houseForm.location = `${payload.city} · ${payload.district}`
+  // 详细地址：直接使用高德返回的完整格式化地址
+  houseForm.address = payload.address || [payload.province, payload.city, payload.district, payload.township, payload.neighborhood]
+    .filter(Boolean)
+    .join('')
 }
 
 async function handleSubmit() {
@@ -247,7 +298,7 @@ onMounted(fetchInitData)
     <PageHeader title="编辑房源" description="修改房源基础资料、配套设施和图片。">
       <template #actions><el-button :icon="ArrowLeft" @click="router.back()">返回</el-button></template>
     </PageHeader>
-    <DataSourceNotice type="real" detail="图片通过 /api/admin/files/house-images/upload 上传；设施标签完整替换；未修改字段不传。" />
+
 
     <div v-loading="pageLoading" class="edit-loading">
       <el-form ref="formRef" :model="houseForm" :rules="rules" label-position="top" @submit.prevent="handleSubmit">
@@ -269,9 +320,28 @@ onMounted(fetchInitData)
             <el-card class="surface-card" shadow="never">
               <template #header><strong class="table-header__title">位置与房间</strong></template>
               <div class="form-grid form-grid--two">
-                <el-form-item label="区域或商圈" prop="location"><el-input v-model="houseForm.location" placeholder="例如：渝北区 · 中央公园" /></el-form-item>
-                <el-form-item label="小区 ID" prop="communityId"><el-input v-model="houseForm.communityId" /></el-form-item>
-                <el-form-item label="详细地址" class="span-two"><el-input v-model="houseForm.address" placeholder="街道及门牌信息" /></el-form-item>
+                <!-- 地图选址按钮 -->
+                <div class="span-two map-pick-area">
+                  <el-button type="primary" :icon="Location" size="large" @click="pickingLocation = true">
+                    {{ houseForm.longitude != null ? '重新选择地址' : '点击选择房源地址' }}
+                  </el-button>
+                  <span v-if="houseForm.longitude == null" class="map-pick-hint">请先在地图上选择房源的准确位置，系统将自动解析省/市/区/街道/社区</span>
+                  <el-tag v-else type="success" size="large">已选择位置</el-tag>
+                </div>
+                <!-- 已选地址信息 -->
+                <div v-if="geoInfo" class="span-two coord-info">
+                  <span class="coord-info__detail">{{geoInfo.address }}</span>
+          
+                </div>
+                <el-form-item label="区域或商圈" prop="location">
+                  <el-input v-model="houseForm.location" disabled placeholder="选择地址后自动填充" />
+                </el-form-item>
+                <el-form-item label="小区 ID" prop="communityId">
+                  <el-input v-model="houseForm.communityId" placeholder="如已知小区ID可填写" />
+                </el-form-item>
+                <el-form-item label="详细地址" class="span-two">
+                  <el-input v-model="houseForm.address" disabled placeholder="选择地址后自动填充" />
+                </el-form-item>
                 <el-form-item label="楼栋"><el-input v-model="houseForm.building" /></el-form-item>
                 <el-form-item label="单元"><el-input v-model="houseForm.unit" /></el-form-item>
                 <el-form-item label="房号"><el-input v-model="houseForm.room" /></el-form-item>
@@ -381,6 +451,13 @@ onMounted(fetchInitData)
         </div>
       </el-form>
     </div>
+
+    <AmapLocationPicker
+      v-model="pickingLocation"
+      :initial-lng="houseForm.longitude"
+      :initial-lat="houseForm.latitude"
+      @confirm="handleLocationConfirm"
+    />
   </div>
 </template>
 
@@ -441,6 +518,12 @@ onMounted(fetchInitData)
 .image-hint { margin: 8px 0 0; color: #a8b2ad; font-size: 11px; line-height: 1.5; }
 
 .check-group { min-height: 40px; .el-checkbox { display: flex; margin-bottom: 8px; } }
+.map-pick-area { display: flex; align-items: center; gap: 16px; padding: 8px 0; }
+.map-pick-hint { color: #a8b2ad; font-size: 12px; }
+.coord-info { display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; background: #f0f7ff; border-radius: 4px; font-size: 14px; color: #333; line-height: 1.5; }
+.coord-info__label { flex-shrink: 0; }
+.coord-info__detail { font-weight: 500; }
+.coord-info__coords { color: #86928c; font-size: 12px; white-space: nowrap; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid #e6ebe9; }.switch-row:last-child { border-bottom: 0; }.switch-row div { display: flex; flex-direction: column; }.switch-row strong { font-size: 13px; }.switch-row span { margin-top: 4px; color: #86928c; font-size: 11px; line-height: 1.4; }.form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 1050px) { .form-layout { grid-template-columns: 1fr; }.form-aside { display: grid; grid-template-columns: 1fr 1fr; }.form-actions { grid-column: 1 / -1; } }
 @media (max-width: 640px) { .form-grid--two, .form-aside { grid-template-columns: 1fr; }.span-two { grid-column: auto; }.form-actions { grid-column: auto; }.form-actions .el-button { flex: 1; } }
