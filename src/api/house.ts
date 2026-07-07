@@ -92,6 +92,13 @@ export interface HouseItem {
   lockDevice: LockDeviceView | null
   viewCount: number
   favoriteCount: number
+  longitude?: number | null
+  latitude?: number | null
+  province?: string | null
+  city?: string | null
+  district?: string | null
+  township?: string | null
+  neighborhood?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -123,6 +130,13 @@ export interface CreateHouseRequest {
   description?: string
   isSmartLockSupported?: boolean
   isSelfViewingSupported?: boolean
+  longitude?: number
+  latitude?: number
+  province?: string
+  city?: string
+  district?: string
+  township?: string
+  neighborhood?: string
 }
 
 export interface UpdateHouseRequest {
@@ -152,6 +166,13 @@ export interface UpdateHouseRequest {
   description?: string
   isSmartLockSupported?: boolean
   isSelfViewingSupported?: boolean
+  longitude?: number
+  latitude?: number
+  province?: string
+  city?: string
+  district?: string
+  township?: string
+  neighborhood?: string
 }
 
 export interface UploadImageResult {

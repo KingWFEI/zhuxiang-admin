@@ -65,6 +65,12 @@ async function unwrap<T>(promise: Promise<ApiResponse<T>>) {
   return unwrapApiResponse(await promise)
 }
 
+export function getLockList() {
+  return unwrap(
+    request.get<never, ApiResponse<LockDetail[]>>('/admin/locks'),
+  )
+}
+
 export function getLockByMac(lockMac: string) {
   return unwrap(
     request.get<never, ApiResponse<LockSummary>>('/admin/locks/by-mac', {

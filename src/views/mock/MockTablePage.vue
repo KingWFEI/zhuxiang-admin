@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { Search } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import { mockManagementConfigs, type MockModuleKey, type MockRecord } from '@/mocks/management'
 import { formatCurrency } from '@/utils/format'
@@ -43,7 +43,6 @@ function openDetail(row: MockRecord) { currentRecord.value = row; detailVisible.
 <template>
   <div class="page-container">
     <PageHeader :title="config.title" :description="config.description" />
-    <DataSourceNotice type="mock" />
 
     <section class="metric-grid">
       <article v-for="metric in config.metrics" :key="metric.label" class="metric-card">
@@ -75,7 +74,7 @@ function openDetail(row: MockRecord) { currentRecord.value = row; detailVisible.
     </el-card>
 
     <el-drawer v-model="detailVisible" :title="`${config.itemName}详情（模拟）`" size="min(460px, 92vw)">
-      <DataSourceNotice type="mock" detail="该详情仅展示页面结构，未提交任何后端操作。" />
+
       <el-descriptions v-if="currentRecord" :column="1" border class="detail-descriptions">
         <el-descriptions-item v-for="column in config.columns" :key="column.key" :label="column.label">{{ currentRecord[column.key] }}</el-descriptions-item>
       </el-descriptions>

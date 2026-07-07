@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import { sendMessage, type SendMessageRequest } from '@/api/message'
 import { getUserList, type UserItem, type UserRole, type UserStatus } from '@/api/user'
@@ -124,7 +124,7 @@ onMounted(fetchUsers)
 <template>
   <div class="page-container">
     <PageHeader title="发送系统消息" description="选择目标用户并推送系统消息，支持设置后续动作。" />
-    <DataSourceNotice type="real" detail="消息通过 POST /api/admin/messages 发送，用户列表来自 GET /api/admin/users。" />
+
 
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="send-form" @submit.prevent="handleSubmit">
       <el-card shadow="never">

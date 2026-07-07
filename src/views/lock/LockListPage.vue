@@ -1,34 +1,33 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Connection, Key, Link, Refresh, Search, Unlock } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+import { Connection, Link, Refresh, Search, Unlock } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import {
   bindLockRoom,
-  getLockByMac,
   getLockDetail,
+  getLockList,
   getLockUnlockData,
   saveLocalInitializedLock,
   syncLockPlatform,
   unbindLockRoom,
   updateLockBleStatus,
   type LockDetail,
-  type LockSummary,
   type UnlockData,
 } from '@/api/lock'
 import { formatDateTime } from '@/utils/format'
 
 type DialogMode = 'initialize' | 'bind' | 'ble'
 
-const searchMac = ref('')
 const loading = ref(false)
 const actionLoading = ref(false)
-const currentSummary = ref<LockSummary | null>(null)
-const currentDetail = ref<LockDetail | null>(null)
+const lockList = ref<LockDetail[]>([])
+const keyword = ref('')
+const currentLock = ref<LockDetail | null>(null)
+const detailVisible = ref(false)
+const unlockDrawerVisible = ref(false)
 const unlockData = ref<UnlockData | null>(null)
 const dialogVisible = ref(false)
-const unlockDrawerVisible = ref(false)
 const dialogMode = ref<DialogMode>('bind')
 
 const initializeForm = reactive({ lockMac: '', lockName: '', lockData: '', battery: 100, rssi: -55 })
@@ -37,29 +36,66 @@ const bleForm = reactive({ battery: 100, rssi: -55 })
 
 const dialogTitle = computed(() => ({ initialize: '录入本地初始化门锁', bind: '绑定门锁到房源', ble: '更新蓝牙状态' })[dialogMode.value])
 
-async function fetchLockDetail(smartLockId: string) {
-  currentDetail.value = await getLockDetail(smartLockId)
+const filteredLocks = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+  if (!kw) return lockList.value
+  return lockList.value.filter((lock) =>
+    [lock.lockName, lock.lockMac, lock.smartLockId, lock.houseName, lock.roomName, lock.status]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(kw)),
+  )
+})
+
+const statusMap: Record<string, { label: string; type: 'success' | 'warning' | 'info' | 'danger' | '' }> = {
+  online: { label: '在线', type: 'success' },
+  offline: { label: '离线', type: 'info' },
+  bound: { label: '已绑定', type: 'success' },
+  unbound: { label: '未绑定', type: 'warning' },
 }
 
-async function handleSearch() {
-  if (!searchMac.value.trim()) return ElMessage.warning('请输入门锁 MAC 地址')
+function getStatusLabel(status: string) {
+  return statusMap[status]?.label || status || '-'
+}
+
+function getStatusType(status: string) {
+  return statusMap[status]?.type || 'info'
+}
+
+async function fetchLockList() {
   loading.value = true
   try {
-    currentSummary.value = await getLockByMac(searchMac.value.trim())
-    await fetchLockDetail(currentSummary.value.smartLockId)
-  } finally { loading.value = false }
+    lockList.value = await getLockList()
+  } finally {
+    loading.value = false
+  }
+}
+
+async function openDetail(lock: LockDetail) {
+  currentLock.value = lock
+  detailVisible.value = true
+}
+
+async function refreshDetail() {
+  if (!currentLock.value) return
+  currentLock.value = await getLockDetail(currentLock.value.smartLockId)
 }
 
 function openDialog(mode: DialogMode) {
   dialogMode.value = mode
-  if (mode === 'initialize') initializeForm.lockMac = searchMac.value.trim()
-  if (mode === 'bind' && currentSummary.value) {
-    bindForm.houseId = currentSummary.value.houseId || ''
-    bindForm.roomId = currentSummary.value.roomId || ''
+  if (mode === 'initialize') {
+    initializeForm.lockMac = ''
+    initializeForm.lockName = ''
+    initializeForm.lockData = ''
+    initializeForm.battery = 100
+    initializeForm.rssi = -55
   }
-  if (mode === 'ble' && currentDetail.value) {
-    bleForm.battery = currentDetail.value.battery ?? 100
-    bleForm.rssi = currentDetail.value.rssi ?? -55
+  if (mode === 'bind' && currentLock.value) {
+    bindForm.houseId = currentLock.value.houseId || ''
+    bindForm.roomId = currentLock.value.roomId || ''
+  }
+  if (mode === 'ble' && currentLock.value) {
+    bleForm.battery = currentLock.value.battery ?? 100
+    bleForm.rssi = currentLock.value.rssi ?? -55
   }
   dialogVisible.value = true
 }
@@ -69,104 +105,168 @@ async function handleDialogSubmit() {
   try {
     if (dialogMode.value === 'initialize') {
       if (!initializeForm.lockMac || !initializeForm.lockData) return ElMessage.warning('MAC 地址和初始化数据不能为空')
-      const result = await saveLocalInitializedLock(initializeForm)
-      searchMac.value = result.lockMac
+      await saveLocalInitializedLock(initializeForm)
       ElMessage.success('本地门锁记录已保存')
-      await handleSearch()
+      await fetchLockList()
     } else if (dialogMode.value === 'bind') {
-      if (!currentSummary.value || !bindForm.houseId) return ElMessage.warning('请输入房源 ID')
-      await bindLockRoom(currentSummary.value.smartLockId, { houseId: bindForm.houseId, roomId: bindForm.roomId || undefined })
+      if (!currentLock.value || !bindForm.houseId) return ElMessage.warning('请输入房源 ID')
+      await bindLockRoom(currentLock.value.smartLockId, { houseId: bindForm.houseId, roomId: bindForm.roomId || undefined })
       ElMessage.success('门锁绑定成功')
-      await handleSearch()
+      await refreshDetail()
+      await fetchLockList()
     } else {
-      if (!currentSummary.value) return
-      currentDetail.value = await updateLockBleStatus(currentSummary.value.smartLockId, bleForm)
+      if (!currentLock.value) return
+      currentLock.value = await updateLockBleStatus(currentLock.value.smartLockId, bleForm)
       ElMessage.success('蓝牙状态已更新')
+      await fetchLockList()
     }
     dialogVisible.value = false
   } finally { actionLoading.value = false }
 }
 
 async function handleSync() {
-  if (!currentSummary.value) return
+  if (!currentLock.value) return
   actionLoading.value = true
   try {
-    await syncLockPlatform(currentSummary.value.smartLockId)
+    await syncLockPlatform(currentLock.value.smartLockId)
     ElMessage.success('已提交开放平台同步')
-    await fetchLockDetail(currentSummary.value.smartLockId)
+    await refreshDetail()
+    await fetchLockList()
   } finally { actionLoading.value = false }
 }
 
 async function handleUnbind() {
-  if (!currentSummary.value) return
+  if (!currentLock.value) return
   await ElMessageBox.confirm('确认解除当前门锁与房源的绑定关系吗？', '解除绑定', {
     type: 'warning', confirmButtonText: '确认解绑', cancelButtonText: '取消',
   })
   actionLoading.value = true
   try {
-    await unbindLockRoom(currentSummary.value.smartLockId)
+    await unbindLockRoom(currentLock.value.smartLockId)
     ElMessage.success('门锁已解除绑定')
-    await handleSearch()
+    await refreshDetail()
+    await fetchLockList()
   } finally { actionLoading.value = false }
 }
 
 async function handleUnlockData() {
-  if (!currentSummary.value) return
-  unlockData.value = await getLockUnlockData(currentSummary.value.smartLockId)
+  if (!currentLock.value) return
+  unlockData.value = await getLockUnlockData(currentLock.value.smartLockId)
   unlockDrawerVisible.value = true
 }
+
+onMounted(fetchLockList)
 </script>
 
 <template>
   <div class="page-container">
-    <PageHeader title="智能门锁操作台" description="通过 MAC 地址定位设备，完成绑定、同步和蓝牙状态维护。">
-      <template #actions><el-button :icon="Connection" @click="openDialog('initialize')">录入初始化门锁</el-button></template>
+    <PageHeader title="智能门锁" description="查看所有门锁设备，管理绑定、同步和蓝牙状态。">
+      <template #actions>
+        <el-button :icon="Refresh" @click="fetchLockList">刷新</el-button>
+        <el-button type="primary" :icon="Connection" @click="openDialog('initialize')">录入初始化门锁</el-button>
+      </template>
     </PageHeader>
-    <DataSourceNotice type="real" detail="本页面全部查询和操作均调用 /admin/locks 真实接口；后端暂未提供门锁分页列表。" />
 
-    <el-card class="surface-card search-workbench" shadow="never">
-      <div class="lock-search">
-        <div><span>设备定位</span><strong>输入门锁 MAC 地址</strong><small>例如 AA:BB:CC:DD:EE:FF</small></div>
-        <el-input v-model="searchMac" size="large" clearable placeholder="门锁 MAC 地址" :prefix-icon="Key" @keyup.enter="handleSearch">
-          <template #append><el-button :icon="Search" :loading="loading" @click="handleSearch">查询</el-button></template>
-        </el-input>
-      </div>
+    <el-card class="surface-card" shadow="never">
+      <el-form inline @submit.prevent>
+        <el-form-item label="关键词">
+          <el-input
+            v-model="keyword"
+            clearable
+            placeholder="门锁名称、MAC、ID、房源名称、房间号"
+            :prefix-icon="Search"
+            style="width: 340px"
+          />
+        </el-form-item>
+      </el-form>
     </el-card>
 
-    <template v-if="currentSummary">
-      <section class="lock-overview">
-        <article><span>门锁名称</span><strong>{{ currentSummary.lockName || '-' }}</strong><small>{{ currentSummary.lockMac }}</small></article>
-        <article><span>业务状态</span><strong>{{ currentSummary.status || '-' }}</strong><small>本地记录 {{ currentSummary.smartLockId }}</small></article>
-        <article><span>绑定房源</span><strong>{{ currentSummary.houseName || '未绑定' }}</strong><small>{{ currentSummary.roomName || currentSummary.houseId || '-' }}</small></article>
-        <article><span>设备电量</span><strong>{{ currentDetail?.battery == null ? '-' : `${currentDetail.battery}%` }}</strong><small>RSSI {{ currentDetail?.rssi ?? '-' }} dBm</small></article>
-      </section>
+    <el-card class="surface-card" shadow="never">
+      <template #header>
+        <div class="table-header">
+          <strong class="table-header__title">门锁列表</strong>
+          <span class="muted-text">共 {{ lockList.length }} 台设备</span>
+        </div>
+      </template>
+      <el-table v-loading="loading" :data="filteredLocks" border empty-text="暂无门锁设备">
+        <el-table-column label="门锁名称" min-width="140">
+          <template #default="{ row }">
+            <span>{{ row.lockName || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="MAC 地址" width="155">
+          <template #default="{ row }">
+            <code class="mac-text">{{ row.lockMac }}</code>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="绑定房源" min-width="150">
+          <template #default="{ row }">
+            <div class="cell-stack">
+              <span>{{ row.houseName || '未绑定' }}</span>
+              <small v-if="row.roomName" class="muted-text">{{ row.roomName }}</small>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="电量" width="80">
+          <template #default="{ row }">
+            <span>{{ row.battery != null ? row.battery + '%' : '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="蓝牙信号" width="100">
+          <template #default="{ row }">
+            <span>{{ row.rssi != null ? row.rssi + ' dBm' : '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="最近蓝牙同步" width="170">
+          <template #default="{ row }">
+            <span class="muted-text">{{ formatDateTime(row.lastBleSyncTime) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
-      <div class="lock-grid">
-        <el-card class="surface-card" shadow="never">
-          <template #header><div class="table-header"><strong class="table-header__title">设备详情</strong><el-button link type="primary" :icon="Refresh" @click="fetchLockDetail(currentSummary.smartLockId)">刷新详情</el-button></div></template>
-          <el-descriptions v-if="currentDetail" :column="2" border>
-            <el-descriptions-item label="本地记录 ID">{{ currentDetail.smartLockId }}</el-descriptions-item>
-            <el-descriptions-item label="开放平台锁 ID">{{ currentDetail.lockId ?? '-' }}</el-descriptions-item>
-            <el-descriptions-item label="电子钥匙 ID">{{ currentDetail.keyId ?? '-' }}</el-descriptions-item>
-            <el-descriptions-item label="电量来源">{{ currentDetail.batterySource || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="最近蓝牙同步">{{ formatDateTime(currentDetail.lastBleSyncTime) }}</el-descriptions-item>
-            <el-descriptions-item label="最近平台同步">{{ formatDateTime(currentDetail.lastPlatformSyncTime) }}</el-descriptions-item>
-            <el-descriptions-item label="平台错误" :span="2">{{ currentDetail.platformErrorMessage || '无' }}</el-descriptions-item>
-          </el-descriptions>
-        </el-card>
+    <el-drawer v-model="detailVisible" title="门锁详情" size="min(560px, 92vw)">
+      <template v-if="currentLock">
+        <h2 class="detail-title">{{ currentLock.lockName || currentLock.smartLockId }}</h2>
 
-        <el-card class="surface-card actions-panel" shadow="never">
-          <template #header><strong class="table-header__title">设备操作</strong></template>
+        <section class="detail-actions">
           <el-button type="primary" :icon="Link" @click="openDialog('bind')">绑定房源</el-button>
           <el-button :icon="Connection" @click="openDialog('ble')">更新蓝牙状态</el-button>
           <el-button :icon="Refresh" :loading="actionLoading" @click="handleSync">同步开放平台</el-button>
           <el-button :icon="Unlock" @click="handleUnlockData">获取开锁数据</el-button>
           <el-button type="danger" plain @click="handleUnbind">解除房源绑定</el-button>
-        </el-card>
-      </div>
-    </template>
+        </section>
 
-    <el-empty v-else description="查询门锁后显示设备详情与可用操作" :image-size="92" />
+        <el-descriptions :column="1" border class="detail-descriptions">
+          <el-descriptions-item label="本地记录 ID">{{ currentLock.smartLockId }}</el-descriptions-item>
+          <el-descriptions-item label="门锁名称">{{ currentLock.lockName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="MAC 地址"><code>{{ currentLock.lockMac }}</code></el-descriptions-item>
+          <el-descriptions-item label="业务状态">
+            <el-tag :type="getStatusType(currentLock.status)" size="small">{{ getStatusLabel(currentLock.status) }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="TTLock lockId">{{ currentLock.lockId ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="电子钥匙 keyId">{{ currentLock.keyId ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="绑定房源">{{ currentLock.houseName || '未绑定' }}</el-descriptions-item>
+          <el-descriptions-item label="房间">{{ currentLock.roomName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="电量">{{ currentLock.battery != null ? currentLock.battery + '%' : '-' }}</el-descriptions-item>
+          <el-descriptions-item label="电量来源">{{ currentLock.batterySource || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="蓝牙信号">{{ currentLock.rssi != null ? currentLock.rssi + ' dBm' : '-' }}</el-descriptions-item>
+          <el-descriptions-item label="最近蓝牙同步">{{ formatDateTime(currentLock.lastBleSyncTime) }}</el-descriptions-item>
+          <el-descriptions-item label="最近平台同步">{{ formatDateTime(currentLock.lastPlatformSyncTime) }}</el-descriptions-item>
+          <el-descriptions-item label="平台错误">{{ currentLock.platformErrorMessage || '无' }}</el-descriptions-item>
+        </el-descriptions>
+      </template>
+    </el-drawer>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="min(520px, 92vw)" destroy-on-close>
       <el-form v-if="dialogMode === 'initialize'" :model="initializeForm" label-position="top">
@@ -199,9 +299,58 @@ async function handleUnlockData() {
 </template>
 
 <style scoped lang="scss">
-.lock-search { display: grid; grid-template-columns: minmax(180px, 0.65fr) minmax(320px, 1.35fr); align-items: center; gap: 32px; }.lock-search > div { display: flex; flex-direction: column; }.lock-search span { color: #176b4d; font-size: 10px; font-weight: 750; }.lock-search strong { margin-top: 5px; font-size: 17px; }.lock-search small { margin-top: 4px; color: #8b9691; }
-.lock-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #dfe5e2; border-radius: 6px; background: white; }.lock-overview article { display: flex; min-width: 0; flex-direction: column; padding: 17px; border-right: 1px solid #e5eae8; }.lock-overview article:last-child { border: 0; }.lock-overview span { color: #7c8882; font-size: 11px; }.lock-overview strong { margin-top: 8px; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }.lock-overview small { margin-top: 5px; overflow: hidden; color: #8d9893; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.lock-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; }.actions-panel :deep(.el-card__body) { display: flex; flex-direction: column; gap: 10px; }.actions-panel .el-button { width: 100%; margin-left: 0; }.dialog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }.dialog-grid .el-input-number { width: 100%; }.unlock-detail { margin-top: 18px; }code { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
-@media (max-width: 920px) { .lock-overview { grid-template-columns: repeat(2, 1fr); }.lock-overview article:nth-child(2) { border-right: 0; }.lock-overview article:nth-child(-n + 2) { border-bottom: 1px solid #e5eae8; }.lock-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .lock-search { grid-template-columns: 1fr; gap: 16px; }.lock-overview { grid-template-columns: 1fr; }.lock-overview article { border-right: 0; border-bottom: 1px solid #e5eae8; }.dialog-grid { grid-template-columns: 1fr; gap: 0; } }
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  span { font-size: 13px; }
+  small { font-size: 11px; }
+}
+.mac-text {
+  font-size: 12px;
+}
+.detail-title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.detail-descriptions {
+  margin-top: 0;
+}
+.dialog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  .el-input-number {
+    width: 100%;
+  }
+}
+.unlock-detail {
+  margin-top: 18px;
+}
+code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+@media (max-width: 640px) {
+  .dialog-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .detail-actions {
+    flex-direction: column;
+    .el-button {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
+}
 </style>

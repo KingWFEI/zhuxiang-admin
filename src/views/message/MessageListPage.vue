@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Delete, Refresh } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import {
   clearReadMessages,
@@ -60,7 +60,7 @@ onMounted(fetchMessages)
     <PageHeader title="消息中心" description="查看当前管理账号收到的系统、租约、账单和设备消息。">
       <template #actions><el-button :icon="Check" @click="handleMarkAllRead">全部已读</el-button><el-button :icon="Refresh" @click="fetchMessages">刷新</el-button></template>
     </PageHeader>
-    <DataSourceNotice type="real" detail="消息列表、未读统计、已读和删除操作均使用当前用户消息真实接口。" />
+
 
     <section class="message-metrics">
       <article><span>全部未读</span><strong>{{ unreadCounts.total }}</strong></article>
