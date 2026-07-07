@@ -18,7 +18,7 @@ import {
   type HouseTagPayload,
   type UpdateHouseTagPayload,
 } from '@/api/house'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import { facilityIconOptions, facilityIconCategories } from '@/constants/facilityIcons'
 
@@ -224,7 +224,7 @@ async function handleTagDelete(item: HouseTagItem) {
         <el-button :icon="Refresh" @click="fetchAll" :loading="loading">刷新</el-button>
       </template>
     </PageHeader>
-    <DataSourceNotice type="real" detail="设施字典与标签字典来自后端接口，删除受房源引用保护（409 冲突）。" />
+
 
     <el-tabs v-model="activeTab" class="dict-tabs">
       <!-- ===================== 设施字典 ===================== -->

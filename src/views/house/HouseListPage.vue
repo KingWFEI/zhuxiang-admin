@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { OfficeBuilding, Plus, Refresh, Search } from '@element-plus/icons-vue'
-import DataSourceNotice from '@/components/DataSourceNotice.vue'
+
 import PageHeader from '@/components/PageHeader.vue'
 import { getHouseList, offlineHouse, onlineHouse, publishHouse, type HouseItem, type LockDeviceView } from '@/api/house'
 import { formatDateTime, formatFenCurrency } from '@/utils/format'
@@ -135,7 +135,7 @@ onMounted(fetchHouseList)
         <el-button type="primary" :icon="Plus" @click="router.push('/houses/create')">新增房源</el-button>
       </template>
     </PageHeader>
-    <DataSourceNotice type="real" detail="列表和门锁绑定摘要来自 GET /admin/houses；筛选和分页当前在前端执行。" />
+
 
     <el-card class="surface-card" shadow="never">
       <el-form :model="searchForm" inline @submit.prevent="handleSearch">
