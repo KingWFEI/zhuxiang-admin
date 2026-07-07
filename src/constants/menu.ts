@@ -23,6 +23,7 @@ export const menuItems: MenuItem[] = [
       { title: '房源列表', path: '/houses', source: 'real' },
       { title: '新增房源', path: '/houses/create', source: 'real' },
       { title: '设施与标签配置', path: '/houses/config', source: 'real' },
+      { title: '沉浸式看房管理', path: '/immersive-tour/debug', source: 'real' },
     ],
   },
   {

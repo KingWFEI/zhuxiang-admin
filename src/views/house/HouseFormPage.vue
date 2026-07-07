@@ -331,7 +331,7 @@ onMounted(fetchDictionaries)
                   <label class="upload-btn upload-btn--outline" :class="{ 'is-loading': coverUploading }">
                     <el-icon><Picture /></el-icon>
                     <span>{{ coverUploading ? '上传中...' : '重新上传封面' }}</span>
-                    <input type="file" :accept="UPLOAD_LIMITS.accept" hidden @change="onCoverFileChange" :disabled="coverUploading" />
+                    <input type="file" :accept="UPLOAD_LIMITS.accept" hidden :disabled="coverUploading" @change="onCoverFileChange">
                   </label>
                 </div>
               </template>
@@ -340,7 +340,7 @@ onMounted(fetchDictionaries)
                   <el-icon :size="28"><Plus /></el-icon>
                   <span>{{ coverUploading ? '上传中...' : '上传封面图片' }}</span>
                   <small>支持 {{ UPLOAD_LIMITS.acceptLabel }}，不超过 5MB</small>
-                  <input type="file" :accept="UPLOAD_LIMITS.accept" hidden @change="onCoverFileChange" :disabled="coverUploading" />
+                  <input type="file" :accept="UPLOAD_LIMITS.accept" hidden :disabled="coverUploading" @change="onCoverFileChange">
                 </label>
               </template>
             </div>
@@ -358,7 +358,7 @@ onMounted(fetchDictionaries)
                 <div class="image-grid__preview">
                   <el-image :src="img.url" fit="cover" :preview-src-list="images.map(i => i.url)" :initial-index="idx" preview-teleported />
                   <span v-if="idx === 0" class="image-grid__badge">封面</span>
-                  <button type="button" class="image-grid__remove" @click="removeImage(idx)" title="移除图片">
+                  <button type="button" class="image-grid__remove" title="移除图片" @click="removeImage(idx)">
                     <el-icon :size="14"><Delete /></el-icon>
                   </button>
                 </div>
@@ -366,7 +366,7 @@ onMounted(fetchDictionaries)
               <label v-if="canAddMore" class="image-grid__add" :class="{ 'is-loading': extraUploading }">
                 <el-icon :size="24"><Plus /></el-icon>
                 <span>{{ extraUploading ? '上传中...' : '添加图片' }}</span>
-                <input type="file" :accept="UPLOAD_LIMITS.accept" hidden @change="onExtraFileChange" :disabled="extraUploading" />
+                <input type="file" :accept="UPLOAD_LIMITS.accept" hidden :disabled="extraUploading" @change="onExtraFileChange">
               </label>
             </div>
             <p v-if="images.length === 0" class="image-hint">第一张上传的图片将作为封面，最多可上传 {{ UPLOAD_LIMITS.maxTotal }} 张</p>

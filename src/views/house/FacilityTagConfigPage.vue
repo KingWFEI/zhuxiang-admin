@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import {
@@ -221,7 +221,7 @@ async function handleTagDelete(item: HouseTagItem) {
   <div class="page-container">
     <PageHeader title="设施与标签配置" description="管理设施字典和房源标签字典，可新增、编辑、停用或删除配置项。">
       <template #actions>
-        <el-button :icon="Refresh" @click="fetchAll" :loading="loading">刷新</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="fetchAll">刷新</el-button>
       </template>
     </PageHeader>
 

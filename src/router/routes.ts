@@ -51,6 +51,24 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '设施与标签配置', source: 'real' },
       },
       {
+        path: 'immersive-tour/debug',
+        name: 'ImmersiveTourDebug',
+        component: () => import('@/views/immersive/ImmersiveTourManagePage.vue'),
+        meta: { title: '沉浸式看房管理', source: 'real' },
+      },
+      {
+        path: 'immersive-tour/house/:houseId',
+        name: 'ImmersiveTourHouse',
+        component: () => import('@/views/immersive/ImmersiveTourManagePage.vue'),
+        meta: { title: '沉浸式看房管理', source: 'real' },
+      },
+      {
+        path: 'immersive-tour/preview/:houseId',
+        name: 'ImmersiveTourPreview',
+        component: () => import('@/views/immersive/ImmersiveTourPreview.vue'),
+        meta: { title: '沉浸式看房预览', source: 'real' },
+      },
+      {
         path: 'locks',
         name: 'LockList',
         component: () => import('@/views/lock/LockListPage.vue'),
@@ -102,7 +120,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'repairs',
         name: 'RepairList',
         component: () => import('@/views/repair/RepairListPage.vue'),
-        meta: { title: '报修管理', source: 'mock', permission: 'repair:list' },
+        meta: { title: '报修管理', source: 'real', permission: 'repair:list' },
       },
       {
         path: 'system',
