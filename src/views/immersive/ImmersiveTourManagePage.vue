@@ -10,6 +10,7 @@ import {
   View,
   Plus,
   Refresh,
+  Search,
   UploadFilled,
   VideoPlay,
   Warning,
@@ -17,6 +18,7 @@ import {
 import PageHeader from '@/components/PageHeader.vue'
 import DataSourceNotice from '@/components/DataSourceNotice.vue'
 import PanoramaHotspotEditor from '@/components/immersive-tour/PanoramaHotspotEditor.vue'
+import { getHouseList, type HouseItem } from '@/api/house'
 import {
   createHotspot,
   createScene,
@@ -24,7 +26,6 @@ import {
   deleteHotspot,
   deleteScene,
   deleteSceneImage,
-  getAppTourDetail,
   getHotspots,
   getSceneImages,
   getScenes,
@@ -73,7 +74,7 @@ const route = useRoute()
 const router = useRouter()
 
 const serviceOrigin = 'http://localhost:8001'
-const houseId = ref(String(route.params.houseId || 'house-1'))
+const houseId = ref(String(route.params.houseId || ''))
 const tour = ref<ImmersiveTourSummary | null>(null)
 const scenes = ref<ImmersiveScene[]>([])
 const images = ref<ImmersiveImage[]>([])
@@ -82,7 +83,6 @@ const pendingFiles = ref<PendingFile[]>([])
 const selectedSceneId = ref('')
 const selectedImageId = ref('')
 const availability = ref<AvailabilityResponse | null>(null)
-const appTourJson = ref('')
 const lastError = ref('')
 
 const loading = ref(false)
@@ -97,6 +97,11 @@ const uploadProgress = ref(0)
 const uploadSuccessCount = ref(0)
 const uploadFailCount = ref(0)
 const uploadError = ref('')
+const houseDialogVisible = ref(false)
+const houseLoading = ref(false)
+const houseList = ref<HouseItem[]>([])
+const houseKeyword = ref('')
+const selectedHouse = ref<HouseItem | null>(null)
 
 const sceneDialogVisible = ref(false)
 const sceneSaving = ref(false)
@@ -198,6 +203,15 @@ const selectedSceneWithImages = computed(() => (selectedScene.value ? { ...selec
 const selectedImage = computed(() => images.value.find((item) => item.imageId === selectedImageId.value) || null)
 const targetSceneOptions = computed(() => scenes.value.filter((item) => item.sceneId !== selectedSceneId.value))
 const canUseTour = computed(() => Boolean(tour.value?.tourId))
+const selectedHouseText = computed(() => selectedHouse.value ? `${selectedHouse.value.title}（${selectedHouse.value.id}）` : houseId.value)
+const filteredHouseList = computed(() => {
+  const keyword = houseKeyword.value.trim().toLowerCase()
+  if (!keyword) return houseList.value
+  return houseList.value.filter((house) =>
+    [house.id, house.title, house.location, house.address, house.roomType]
+      .some((value) => value?.toLowerCase().includes(keyword)),
+  )
+})
 const selectedRenderMode = computed<RenderMode>(() => selectedScene.value?.renderMode || 'PHOTO')
 const selectedProjectionType = computed<ProjectionType>(() =>
   selectedRenderMode.value === 'PANORAMA' ? 'EQUIRECTANGULAR' : 'FLAT',
@@ -259,10 +273,36 @@ function isValidRatio(value: number) {
   return Number.isFinite(value) && value >= 0 && value <= 1
 }
 
+async function fetchHouseOptions() {
+  houseLoading.value = true
+  try {
+    houseList.value = await getHouseList()
+    if (houseId.value && !selectedHouse.value) {
+      selectedHouse.value = houseList.value.find((house) => house.id === houseId.value) || null
+    }
+  } catch (error) {
+    setError(error)
+  } finally {
+    houseLoading.value = false
+  }
+}
+
+async function openHouseDialog() {
+  houseDialogVisible.value = true
+  if (!houseList.value.length) await fetchHouseOptions()
+}
+
+async function selectHouse(house: HouseItem) {
+  selectedHouse.value = house
+  houseId.value = house.id
+  houseDialogVisible.value = false
+  await queryTour()
+}
+
 function openPreviewPage() {
   const targetHouseId = houseId.value.trim()
   if (!targetHouseId) {
-    ElMessage.warning('请先输入房源 ID')
+    ElMessage.warning('请先选择房源')
     return
   }
   const previewUrl = router.resolve(`/immersive-tour/preview/${targetHouseId}`).href
@@ -277,13 +317,12 @@ function clearPendingFiles() {
 
 async function queryTour() {
   if (!houseId.value.trim()) {
-    ElMessage.warning('请先输入房源 ID')
+    ElMessage.warning('请先选择房源')
     return
   }
   loading.value = true
   lastError.value = ''
   availability.value = null
-  appTourJson.value = ''
   try {
     const result = await getTourByHouseId(houseId.value.trim())
     tour.value = result
@@ -306,14 +345,14 @@ async function queryTour() {
 
 async function handleCreateTour() {
   if (!houseId.value.trim()) {
-    ElMessage.warning('请先输入房源 ID')
+    ElMessage.warning('请先选择房源')
     return
   }
   creatingTour.value = true
   lastError.value = ''
   try {
     tour.value = await createTour(houseId.value.trim(), {
-      title: `${houseId.value.trim()} 沉浸式看房`,
+      title: `${selectedHouse.value?.title || houseId.value.trim()} 沉浸式看房`,
     })
     ElMessage.success('项目已创建')
     await fetchScenes()
@@ -917,27 +956,21 @@ async function handleOffline() {
   }
 }
 
-async function loadAppTourDetail() {
-  if (!houseId.value.trim()) return
-  try {
-    const detail = await getAppTourDetail(houseId.value.trim())
-    appTourJson.value = JSON.stringify(detail, null, 2)
-  } catch (error) {
-    setError(error)
-  }
-}
-
 watch(
   () => route.params.houseId,
   (value) => {
     if (value && value !== houseId.value) {
       houseId.value = String(value)
+      selectedHouse.value = houseList.value.find((house) => house.id === houseId.value) || null
       void queryTour()
     }
   },
 )
 
-onMounted(queryTour)
+onMounted(async () => {
+  await fetchHouseOptions()
+  if (houseId.value) await queryTour()
+})
 onBeforeUnmount(() => {
   clearPendingFiles()
   window.removeEventListener('pointermove', handleHotspotDragging)
@@ -957,8 +990,11 @@ onBeforeUnmount(() => {
     <el-card class="surface-card" shadow="never">
       <div class="tour-toolbar">
         <el-form label-width="82px" class="tour-form">
-          <el-form-item label="房源 ID">
-            <el-input v-model="houseId" placeholder="house-1" clearable @keyup.enter="queryTour" />
+          <el-form-item label="房源">
+            <div class="house-picker-field">
+              <el-input :model-value="selectedHouseText" readonly placeholder="请选择房源" />
+              <el-button type="primary" plain @click="openHouseDialog">选择房源</el-button>
+            </div>
           </el-form-item>
           <el-form-item label="项目标题">
             <el-input :model-value="tour?.title || ''" disabled placeholder="未查询到项目" />
@@ -984,7 +1020,7 @@ onBeforeUnmount(() => {
       <el-empty v-if="!tour && !loading" description="未查询到沉浸式项目，可点击创建项目。" :image-size="88" />
     </el-card>
 
-    <div class="workspace-grid">
+    <div v-if="canUseTour" class="workspace-grid">
       <section class="panel scene-panel">
         <div class="panel__header">
           <strong>场景列表</strong>
@@ -1139,25 +1175,50 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <el-card class="surface-card" shadow="never">
-      <div class="debug-actions">
-        <el-button :disabled="!houseId" @click="getTourAvailability(houseId).then((res) => (availability = res)).catch(setError)">验证发布状态</el-button>
-        <el-button :disabled="!houseId" @click="loadAppTourDetail">加载用户端完整配置</el-button>
+    <el-dialog v-model="houseDialogVisible" title="选择房源" width="min(900px, 92vw)">
+      <div class="house-dialog-toolbar">
+        <el-input
+          v-model="houseKeyword"
+          clearable
+          placeholder="搜索房源标题、区域、地址、户型或 ID"
+          :prefix-icon="Search"
+        />
+        <el-button :icon="Refresh" :loading="houseLoading" @click="fetchHouseOptions">刷新</el-button>
       </div>
-      <el-descriptions v-if="availability" :column="3" border size="small">
-        <el-descriptions-item label="是否可预览">{{ availability.available ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="项目 ID">{{ availability.tourId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="封面图地址">{{ availability.coverImageUrl || '-' }}</el-descriptions-item>
-      </el-descriptions>
-      <el-collapse>
-        <el-collapse-item title="调试信息">
-          <pre>{{ JSON.stringify({ houseId, tour, selectedSceneId, selectedImageId }, null, 2) }}</pre>
-        </el-collapse-item>
-        <el-collapse-item v-if="appTourJson" title="用户端完整看房配置">
-          <pre>{{ appTourJson }}</pre>
-        </el-collapse-item>
-      </el-collapse>
-    </el-card>
+      <el-table
+        v-loading="houseLoading"
+        :data="filteredHouseList"
+        border
+        empty-text="暂无房源数据"
+        max-height="520"
+        highlight-current-row
+        @row-dblclick="selectHouse"
+      >
+        <el-table-column label="房源" min-width="240">
+          <template #default="{ row }">
+            <div class="house-option-cell">
+              <strong>{{ row.title }}</strong>
+              <span>{{ row.location || '-' }} · {{ row.roomType || '户型未填' }}</span>
+              <small>ID {{ row.id }}</small>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="地址" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.address || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">{{ row.status || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="月租" width="120">
+          <template #default="{ row }">{{ row.price == null ? '-' : `￥${Math.round(row.price / 100)}` }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="selectHouse(row)">选择</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <el-dialog v-model="sceneDialogVisible" :title="editingSceneId ? '编辑场景' : '新建场景'" width="520px" destroy-on-close>
       <el-form ref="sceneFormRef" :model="sceneForm" :rules="sceneRules" label-width="96px">
@@ -1267,7 +1328,7 @@ onBeforeUnmount(() => {
 .tour-toolbar,
 .tour-actions,
 .upload-status,
-.debug-actions {
+.house-dialog-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -1287,6 +1348,44 @@ onBeforeUnmount(() => {
 
 .tour-form :deep(.el-form-item) {
   margin-bottom: 0;
+}
+
+.house-picker-field,
+.house-dialog-toolbar {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+}
+
+.house-picker-field .el-input,
+.house-dialog-toolbar .el-input {
+  flex: 1;
+}
+
+.house-option-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.house-option-cell strong,
+.house-option-cell span,
+.house-option-cell small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.house-option-cell span,
+.house-option-cell small {
+  color: #84918b;
+  font-size: 12px;
+}
+
+.house-dialog-toolbar {
+  margin-bottom: 12px;
 }
 
 .error-alert {
