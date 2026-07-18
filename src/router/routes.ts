@@ -102,13 +102,19 @@ export const routes: RouteRecordRaw[] = [
         path: 'orders',
         name: 'OrderList',
         component: () => import('@/views/order/OrderListPage.vue'),
-        meta: { title: '订单管理', source: 'mock' },
+        meta: { title: '订单管理', source: 'real', permission: 'order:list' },
       },
       {
         path: 'leases',
         name: 'LeaseList',
         component: () => import('@/views/lease/LeaseListPage.vue'),
         meta: { title: '租约管理', source: 'real', permission: 'lease:list' },
+      },
+      {
+        path: 'contracts',
+        name: 'ContractList',
+        component: () => import('@/views/contract/ContractListPage.vue'),
+        meta: { title: '合同管理', source: 'real', permission: 'contract:list' },
       },
       {
         path: 'contracts/templates',

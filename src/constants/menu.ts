@@ -37,8 +37,9 @@ export const menuItems: MenuItem[] = [
     title: '业务管理',
     icon: Document,
     children: [
-      { title: '订单管理', path: '/orders', source: 'mock' },
+      { title: '订单管理', path: '/orders', source: 'real' },
       { title: '租约管理', path: '/leases', source: 'real' },
+      { title: '合同管理', path: '/contracts', source: 'real' },
       { title: '合同模板管理', path: '/contracts/templates', source: 'real' },
       { title: '退租管理', path: '/terminations', source: 'real' },
       { title: '账单管理', path: '/bills', source: 'mock' },
