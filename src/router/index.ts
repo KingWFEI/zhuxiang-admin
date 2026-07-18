@@ -20,7 +20,7 @@ router.beforeEach((to) => {
     return { name: 'Dashboard' }
   }
 
-  document.title = `${String(to.meta.title || '管理平台')} - 筑享运营台`
+  document.title = `${String(to.meta.title || '管理平台')} - 住享智居运营台`
   return true
 })
 

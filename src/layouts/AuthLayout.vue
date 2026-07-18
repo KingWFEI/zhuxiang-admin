@@ -7,10 +7,10 @@ import { House, Key, OfficeBuilding, TrendCharts } from '@element-plus/icons-vue
     <section class="auth-panel">
       <div class="auth-brand">
         <span class="auth-brand__mark"><el-icon><House /></el-icon></span>
-        <div><strong>筑享运营台</strong><span>租房业务管理系统</span></div>
+        <div><strong>住享智居运营台</strong><span>租房业务管理系统</span></div>
       </div>
       <div class="auth-content"><slot /></div>
-      <p class="auth-footer">筑享租房平台 · 运营管理端</p>
+      <p class="auth-footer">住享智居平台 · 运营管理端</p>
     </section>
 
     <section class="auth-visual" aria-hidden="true">

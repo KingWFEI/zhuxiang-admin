@@ -18,6 +18,7 @@ import {
   type FacilityItem,
   type HouseTagItem,
 } from '@/api/house'
+import { searchCommunities, type CommunityItem } from '@/api/community'
 
 interface ImageItem {
   uid: string
@@ -69,6 +70,17 @@ const tags = ref<HouseTagItem[]>([])
 const dictLoading = ref(false)
 const pickingLocation = ref(false)
 const geoInfo = ref<LocationConfirmPayload | null>(null)
+
+const communityLoading = ref(false)
+const communityOptions = ref<CommunityItem[]>([])
+async function searchCommunity(keyword: string) {
+  communityLoading.value = true
+  try { communityOptions.value = await searchCommunities(keyword) } finally { communityLoading.value = false }
+}
+async function loadDefaultCommunities() {
+  communityLoading.value = true
+  try { communityOptions.value = await searchCommunities() } finally { communityLoading.value = false }
+}
 
 const hasCover = computed(() => images.value.length > 0)
 const coverUrl = computed(() => images.value[0]?.url ?? '')
@@ -135,7 +147,7 @@ function onExtraFileChange(e: Event) {
 const rules: FormRules = {
   title: [{ required: true, message: '请输入房源标题', trigger: 'blur' }],
   location: [{ required: true, message: '请输入区域或商圈', trigger: 'blur' }],
-  communityId: [{ required: true, message: '请输入小区 ID', trigger: 'blur' }],
+  communityId: [{ required: true, message: '请选择小区', trigger: 'change' }],
   landlordId: [{ required: true, message: '请输入房东用户 ID', trigger: 'blur' }],
   price: [{ required: true, message: '请输入月租金', trigger: 'change' }],
   rentType: [{ required: true, message: '请选择租赁类型', trigger: 'change' }],
@@ -340,8 +352,23 @@ onMounted(fetchInitData)
                 <el-form-item label="区域或商圈" prop="location">
                   <el-input v-model="houseForm.location" disabled placeholder="选择地址后自动填充" />
                 </el-form-item>
-                <el-form-item label="小区 ID" prop="communityId">
-                  <el-input v-model="houseForm.communityId" placeholder="如已知小区ID可填写" />
+                <el-form-item label="小区" prop="communityId">
+                  <el-select
+                    v-model="houseForm.communityId"
+                    filterable remote reserve-keyword clearable
+                    placeholder="请输入小区名称搜索"
+                    :remote-method="searchCommunity"
+                    :loading="communityLoading"
+                    @focus="loadDefaultCommunities"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="item in communityOptions"
+                      :key="item.id"
+                      :label="`${item.name}（${item.regionName || item.address || ''}）`"
+                      :value="item.id"
+                    />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="详细地址" class="span-two">
                   <el-input v-model="houseForm.address" disabled placeholder="选择地址后自动填充" />
