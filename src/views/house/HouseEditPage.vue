@@ -290,13 +290,17 @@ async function handleSubmit() {
   } finally { submitting.value = false }
 }
 
+function openInspectionTemplate() {
+  router.push(`/houses/${houseId}/inspection-template`)
+}
+
 onMounted(fetchInitData)
 </script>
 
 <template>
   <div class="page-container">
     <PageHeader title="编辑房源" description="修改房源基础资料、配套设施和图片。">
-      <template #actions><el-button :icon="ArrowLeft" @click="router.back()">返回</el-button></template>
+      <template #actions><el-button :icon="ArrowLeft" @click="router.back()">返回</el-button><el-button type="primary" plain @click="openInspectionTemplate">退租验收标准</el-button></template>
     </PageHeader>
 
 
