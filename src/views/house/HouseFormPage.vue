@@ -186,7 +186,7 @@ async function handleLocationConfirm(payload: LocationConfirmPayload) {
     .join('')
 }
 
-async function handleSubmit() {
+async function handleSubmit(configureInspection = false) {
   if (submitting.value) return
   if (!validateImages()) return
   if (!validateFacilityTags()) return
@@ -224,9 +224,13 @@ async function handleSubmit() {
       delete payload.township
       delete payload.neighborhood
     }
-    await createHouse(payload)
+    const createdHouse = await createHouse(payload)
     ElMessage.success('房源创建成功')
-    await router.push('/houses')
+    if (configureInspection) {
+      await router.push(`/houses/${createdHouse.id}/inspection-template`)
+    } else {
+      await router.push('/houses')
+    }
   } finally {
     submitting.value = false
   }
@@ -255,6 +259,10 @@ function validateFacilityTags(): boolean {
   return true
 }
 
+function openInspectionTemplateForNewHouse() {
+  ElMessage.info('请先创建房源，创建后在编辑页配置退租验收标准')
+}
+
 async function fetchDictionaries() {
   facilityLoading.value = true
   tagLoading.value = true
@@ -274,7 +282,7 @@ onMounted(fetchDictionaries)
 <template>
   <div class="page-container">
     <PageHeader title="新增房源" description="录入房源基础资料，创建后默认以草稿状态进入资产列表。">
-      <template #actions><el-button :icon="ArrowLeft" @click="router.back()">返回</el-button></template>
+      <template #actions><el-button :icon="ArrowLeft" @click="router.back()">返回</el-button><el-button type="primary" plain @click="openInspectionTemplateForNewHouse">退租验收标准</el-button></template>
     </PageHeader>
 
 
@@ -441,7 +449,7 @@ onMounted(fetchDictionaries)
             <div class="switch-row"><div><strong>支持智能门锁</strong><span>后续可在门锁操作台绑定设备</span></div><el-switch v-model="houseForm.isSmartLockSupported" /></div>
             <div class="switch-row"><div><strong>支持自助看房</strong><span>标记房源可配置自助看房</span></div><el-switch v-model="houseForm.isSelfViewingSupported" /></div>
           </el-card>
-          <div class="form-actions"><el-button @click="handleReset">重置</el-button><el-button type="primary" :icon="Check" :loading="submitting" @click="handleSubmit">创建房源</el-button></div>
+          <div class="form-actions"><el-button @click="handleReset">重置</el-button><el-button :loading="submitting" @click="handleSubmit(true)">创建并配置验收标准</el-button><el-button type="primary" :icon="Check" :loading="submitting" @click="handleSubmit()">创建房源</el-button></div>
         </aside>
       </div>
     </el-form>

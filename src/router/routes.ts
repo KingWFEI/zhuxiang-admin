@@ -45,6 +45,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '编辑房源', source: 'real' },
       },
       {
+        path: 'houses/:houseId/inspection-template',
+        name: 'HouseInspectionTemplate',
+        component: () => import('@/views/house/HouseInspectionTemplatePage.vue'),
+        meta: { title: '退租验收标准', source: 'real', permission: 'house:update' },
+      },
+      {
         path: 'houses/config',
         name: 'FacilityTagConfig',
         component: () => import('@/views/house/FacilityTagConfigPage.vue'),
@@ -109,6 +115,12 @@ export const routes: RouteRecordRaw[] = [
         name: 'LeaseList',
         component: () => import('@/views/lease/LeaseListPage.vue'),
         meta: { title: '租约管理', source: 'real', permission: 'lease:list' },
+      },
+      {
+        path: 'contracts/:contractId/inspection',
+        name: 'ContractInspectionArchive',
+        component: () => import('@/views/inspection/ContractInspectionArchivePage.vue'),
+        meta: { title: '退租验房归档', source: 'real', permission: 'lease:list' },
       },
       {
         path: 'contracts',
