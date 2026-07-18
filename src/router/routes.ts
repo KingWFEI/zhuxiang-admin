@@ -51,6 +51,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '设施与标签配置', source: 'real' },
       },
       {
+        path: 'communities',
+        name: 'CommunityList',
+        component: () => import('@/views/community/CommunityListPage.vue'),
+        meta: { title: '小区管理', source: 'real' },
+      },
+      {
         path: 'immersive-tour/debug',
         name: 'ImmersiveTourDebug',
         component: () => import('@/views/immersive/ImmersiveTourManagePage.vue'),
@@ -103,6 +109,30 @@ export const routes: RouteRecordRaw[] = [
         name: 'LeaseList',
         component: () => import('@/views/lease/LeaseListPage.vue'),
         meta: { title: '租约管理', source: 'real', permission: 'lease:list' },
+      },
+      {
+        path: 'contracts/templates',
+        name: 'ContractTemplateList',
+        component: () => import('@/views/contract-template/ContractTemplateListPage.vue'),
+        meta: { title: '合同模板管理', source: 'real', permission: 'contract-template:list' },
+      },
+      {
+        path: 'contracts/templates/create',
+        name: 'ContractTemplateCreate',
+        component: () => import('@/views/contract-template/ContractTemplateCreatePage.vue'),
+        meta: { title: '新建合同模板', source: 'real', permission: 'contract-template:create' },
+      },
+      {
+        path: 'contracts/templates/:templateId',
+        name: 'ContractTemplateDetail',
+        component: () => import('@/views/contract-template/ContractTemplateConfigurePage.vue'),
+        meta: { title: '合同模板详情', source: 'real', permission: 'contract-template:list' },
+      },
+      {
+        path: 'contracts/templates/:templateId/configure',
+        name: 'ContractTemplateConfigure',
+        component: () => import('@/views/contract-template/ContractTemplateConfigurePage.vue'),
+        meta: { title: '配置合同模板', source: 'real', permission: 'contract-template:update' },
       },
       {
         path: 'terminations',

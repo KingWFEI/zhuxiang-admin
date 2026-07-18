@@ -47,6 +47,7 @@ async function handleLogout() {
     await router.replace({ name: 'Login' })
   }
 }
+
 </script>
 
 <template>
@@ -55,7 +56,7 @@ async function handleLogout() {
       <div class="brand" :class="{ 'brand--compact': isCollapsed }">
         <span class="brand__mark"><el-icon><House /></el-icon></span>
         <div v-if="!isCollapsed" class="brand__copy">
-          <strong>筑享运营台</strong>
+          <strong>住享智居运营台</strong>
           <span>RENTAL OPERATIONS</span>
         </div>
       </div>
@@ -97,7 +98,7 @@ async function handleLogout() {
       <div class="mobile-nav">
         <div class="brand">
           <span class="brand__mark"><el-icon><House /></el-icon></span>
-          <div class="brand__copy"><strong>筑享运营台</strong><span>RENTAL OPERATIONS</span></div>
+          <div class="brand__copy"><strong>住享智居运营台</strong><span>RENTAL OPERATIONS</span></div>
         </div>
         <el-menu :default-active="route.path" router @select="closeMobileDrawer">
           <template v-for="item in menuItems" :key="item.title">
@@ -125,7 +126,7 @@ async function handleLogout() {
         <div class="topbar__left">
           <el-button class="mobile-menu-button" text :icon="MenuIcon" title="打开菜单" @click="mobileDrawerVisible = true" />
           <div>
-            <span class="topbar__eyebrow">筑享租房运营管理</span>
+            <span class="topbar__eyebrow">住享智居租房运营管理</span>
             <strong>{{ pageTitle }}</strong>
           </div>
         </div>

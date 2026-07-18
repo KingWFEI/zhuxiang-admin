@@ -23,6 +23,7 @@ export const menuItems: MenuItem[] = [
       { title: '房源列表', path: '/houses', source: 'real' },
       { title: '新增房源', path: '/houses/create', source: 'real' },
       { title: '设施与标签配置', path: '/houses/config', source: 'real' },
+      { title: '小区管理', path: '/communities', source: 'real' },
       { title: '沉浸式看房管理', path: '/immersive-tour/debug', source: 'real' },
     ],
   },
@@ -38,6 +39,7 @@ export const menuItems: MenuItem[] = [
     children: [
       { title: '订单管理', path: '/orders', source: 'mock' },
       { title: '租约管理', path: '/leases', source: 'real' },
+      { title: '合同模板管理', path: '/contracts/templates', source: 'real' },
       { title: '退租管理', path: '/terminations', source: 'real' },
       { title: '账单管理', path: '/bills', source: 'mock' },
       { title: '报修管理', path: '/repairs', source: 'real' },
