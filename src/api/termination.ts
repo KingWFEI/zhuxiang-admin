@@ -27,6 +27,7 @@ export interface TerminationApplication {
   houseName: string
   houseAddress: string
   contractNo: string
+  contractId?: string
   leaseId: string
   reason: string
   remark: string

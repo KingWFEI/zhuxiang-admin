@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 
 import PageHeader from '@/components/PageHeader.vue'
+import { getLeaseList } from '@/api/lease'
 import {
   approveTermination,
   completeTermination,
@@ -19,6 +21,7 @@ import type { PageData } from '@/api/types'
 import { formatDateTime, formatFenCurrency, maskPhone } from '@/utils/format'
 
 const loading = ref(false)
+const router = useRouter()
 const actionLoading = ref(false)
 const drawerVisible = ref(false)
 const actionDialogVisible = ref(false)
@@ -225,6 +228,22 @@ function canComplete(row: TerminationApplication) {
   return row.status === 'refund_pending' || row.status === 'settlement_pending'
 }
 
+async function openInspectionArchive(row: TerminationApplication) {
+  let contractId = row.contractId
+
+  if (!contractId && row.contractNo) {
+    const leases = await getLeaseList({ keyword: row.contractNo, page: 1, pageSize: 20 })
+    contractId = leases.items.find((lease) => lease.contractNo === row.contractNo)?.contractId
+  }
+
+  if (!contractId) {
+    ElMessage.warning('该退租记录缺少合同 ID，暂时无法查看验房记录')
+    return
+  }
+
+  router.push(`/contracts/${contractId}/inspection`)
+}
+
 function statusLabel(status: TerminationStatus) {
   return statusMap[status]?.label || status
 }
@@ -328,9 +347,12 @@ onMounted(fetchTerminationList)
             <span>{{ formatDateTime(row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDrawer(row)">查看</el-button>
+            <el-button link type="primary" @click="openInspectionArchive(row)">
+              退租验房
+            </el-button>
             <el-button
               v-if="canReview(row)"
               link
@@ -464,6 +486,11 @@ onMounted(fetchTerminationList)
             class="attachment-image"
           />
         </div>
+        <div class="drawer-actions">
+          <el-button type="primary" @click="openInspectionArchive(currentApplication)">
+            退租验房
+          </el-button>
+        </div>
       </template>
     </el-drawer>
 
@@ -556,5 +583,11 @@ onMounted(fetchTerminationList)
   height: 96px;
   margin: 0 10px 10px 0;
   border-radius: 8px;
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>
