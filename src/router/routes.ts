@@ -33,6 +33,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '房源列表', source: 'real', permission: 'house:list' },
       },
       {
+        path: 'houses/reviews',
+        name: 'HouseReview',
+        component: () => import('@/views/house/HouseReviewPage.vue'),
+        meta: { title: '房源审核', source: 'real', permission: 'house:list' },
+      },
+      {
         path: 'houses/create',
         name: 'HouseForm',
         component: () => import('@/views/house/HouseFormPage.vue'),
@@ -103,6 +109,28 @@ export const routes: RouteRecordRaw[] = [
         name: 'OrderList',
         component: () => import('@/views/order/OrderListPage.vue'),
         meta: { title: '订单管理', source: 'real', permission: 'order:list' },
+      },
+      {
+        path: 'appointments',
+        name: 'AppointmentList',
+        component: () => import('@/views/appointment/AppointmentListPage.vue'),
+        meta: {
+          title: '看房预约',
+          source: 'real',
+          permission: 'appointment:list',
+          allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+        },
+      },
+      {
+        path: 'appointments/:appointmentId',
+        name: 'AppointmentDetail',
+        component: () => import('@/views/appointment/AppointmentDetailPage.vue'),
+        meta: {
+          title: '预约详情',
+          source: 'real',
+          permission: 'appointment:detail',
+          allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+        },
       },
       {
         path: 'leases',

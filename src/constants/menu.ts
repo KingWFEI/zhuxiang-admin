@@ -1,4 +1,5 @@
 import type { Component } from 'vue'
+import type { AdminRole } from '@/api/types'
 import { DataAnalysis, Document, House, Key, Service, Setting, User } from '@element-plus/icons-vue'
 
 export interface MenuItem {
@@ -6,6 +7,7 @@ export interface MenuItem {
   path?: string
   icon?: Component
   source?: 'real' | 'mock' | 'mixed'
+  allowedRoles?: AdminRole[]
   children?: MenuItem[]
 }
 
@@ -21,6 +23,7 @@ export const menuItems: MenuItem[] = [
     icon: House,
     children: [
       { title: '房源列表', path: '/houses', source: 'real' },
+      { title: '房源审核', path: '/houses/reviews', source: 'real' },
       { title: '新增房源', path: '/houses/create', source: 'real' },
       { title: '设施与标签配置', path: '/houses/config', source: 'real' },
       { title: '小区管理', path: '/communities', source: 'real' },
@@ -38,6 +41,12 @@ export const menuItems: MenuItem[] = [
     icon: Document,
     children: [
       { title: '订单管理', path: '/orders', source: 'real' },
+      {
+        title: '看房预约',
+        path: '/appointments',
+        source: 'real',
+        allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+      },
       { title: '租约管理', path: '/leases', source: 'real' },
       { title: '合同管理', path: '/contracts', source: 'real' },
       { title: '合同模板管理', path: '/contracts/templates', source: 'real' },

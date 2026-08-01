@@ -19,8 +19,16 @@ router.beforeEach((to) => {
   if ((to.name === 'Login' || to.name === 'Register') && authStore.isAuthenticated) {
     return { name: 'Dashboard' }
   }
+  const allowedRoles = to.meta.allowedRoles
+  if (
+    allowedRoles &&
+    authStore.user &&
+    !allowedRoles.includes(authStore.user.role)
+  ) {
+    return { name: 'Dashboard' }
+  }
 
-  document.title = `${String(to.meta.title || '管理平台')} - 住享智居运营台`
+  document.title = `${String(to.meta.title || '管理平台')} - 勿忧管家运营台`
   return true
 })
 

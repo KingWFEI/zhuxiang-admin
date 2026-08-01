@@ -61,6 +61,21 @@ export interface LockDeviceView {
   batteryLevel: number | null
 }
 
+export interface PropertyCertificateView {
+  id: string
+  houseId: string
+  originalName: string
+  contentType: string
+  fileSize: number
+  auditStatus: 'pending' | 'approved' | 'rejected'
+  current: boolean
+  reviewRemark: string | null
+  reviewerId: string | null
+  submittedAt: string | null
+  reviewedAt: string | null
+  createdAt: string
+}
+
 export interface HouseItem {
   id: string
   title: string
@@ -85,6 +100,8 @@ export interface HouseItem {
   description: string | null
   rentType: string
   status: string
+  sourceType: 'PLATFORM' | 'LANDLORD'
+  createdBy: string | null
   landlordId: string | null
   isSmartLockSupported: boolean
   isSelfViewingSupported: boolean
@@ -101,6 +118,7 @@ export interface HouseItem {
   neighborhood?: string | null
   createdAt: string
   updatedAt: string
+  propertyCertificate?: PropertyCertificateView | null
 }
 
 export interface CreateHouseRequest {
@@ -109,7 +127,6 @@ export interface CreateHouseRequest {
   imageUrls: string[]
   location: string
   communityId: string
-  landlordId: string
   price: number
   rentType: string
   facilityIds: string[]
@@ -145,7 +162,6 @@ export interface UpdateHouseRequest {
   imageUrls?: string[]
   location?: string
   communityId?: string
-  landlordId?: string
   price?: number
   rentType?: string
   facilityIds?: string[]
@@ -222,6 +238,31 @@ export async function uploadHouseImage(file: File) {
     '/admin/files/house-images/upload',
     formData,
     { timeout: 30000 },
+  )
+  return unwrapApiResponse(response)
+}
+
+export async function getPropertyCertificateHistory(houseId: string) {
+  const response = await request.get<never, ApiResponse<PropertyCertificateView[]>>(
+    `/admin/houses/${houseId}/property-certificates`,
+  )
+  return unwrapApiResponse(response)
+}
+
+export async function downloadPropertyCertificate(houseId: string, certificateId: string) {
+  return request.get<never, Blob>(
+    `/admin/houses/${houseId}/property-certificates/${certificateId}/file`,
+    { responseType: 'blob' },
+  )
+}
+
+export async function reviewLandlordHouse(
+  houseId: string,
+  data: { action: 'APPROVE' | 'REJECT'; remark?: string },
+) {
+  const response = await request.put<never, ApiResponse<HouseItem>>(
+    `/admin/houses/${houseId}/review`,
+    data,
   )
   return unwrapApiResponse(response)
 }

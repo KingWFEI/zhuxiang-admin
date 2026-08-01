@@ -28,6 +28,18 @@ const roleNameMap = {
 } as const
 
 const pageTitle = computed(() => String(route.meta.title || '管理平台'))
+const visibleMenuItems = computed(() => {
+  const role = authStore.user?.role
+  const visible = (item: MenuItem) =>
+    !item.allowedRoles || (role != null && item.allowedRoles.includes(role))
+  return menuItems
+    .filter(visible)
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter(visible),
+    }))
+    .filter((item) => !item.children || item.children.length > 0)
+})
 
 function menuIndex(item: MenuItem) {
   return item.path || item.title
@@ -56,7 +68,7 @@ async function handleLogout() {
       <div class="brand" :class="{ 'brand--compact': isCollapsed }">
         <span class="brand__mark"><el-icon><House /></el-icon></span>
         <div v-if="!isCollapsed" class="brand__copy">
-          <strong>住享智居运营台</strong>
+          <strong>勿忧管家运营台</strong>
           <span>RENTAL OPERATIONS</span>
         </div>
       </div>
@@ -67,7 +79,7 @@ async function handleLogout() {
         router
         class="sidebar-menu"
       >
-        <template v-for="item in menuItems" :key="item.title">
+        <template v-for="item in visibleMenuItems" :key="item.title">
           <el-sub-menu v-if="item.children" :index="menuIndex(item)">
             <template #title>
               <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
@@ -98,10 +110,10 @@ async function handleLogout() {
       <div class="mobile-nav">
         <div class="brand">
           <span class="brand__mark"><el-icon><House /></el-icon></span>
-          <div class="brand__copy"><strong>住享智居运营台</strong><span>RENTAL OPERATIONS</span></div>
+          <div class="brand__copy"><strong>勿忧管家运营台</strong><span>RENTAL OPERATIONS</span></div>
         </div>
         <el-menu :default-active="route.path" router @select="closeMobileDrawer">
-          <template v-for="item in menuItems" :key="item.title">
+          <template v-for="item in visibleMenuItems" :key="item.title">
             <el-sub-menu v-if="item.children" :index="menuIndex(item)">
               <template #title>
                 <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
@@ -126,7 +138,7 @@ async function handleLogout() {
         <div class="topbar__left">
           <el-button class="mobile-menu-button" text :icon="MenuIcon" title="打开菜单" @click="mobileDrawerVisible = true" />
           <div>
-            <span class="topbar__eyebrow">住享智居租房运营管理</span>
+            <span class="topbar__eyebrow">勿忧管家租房运营管理</span>
             <strong>{{ pageTitle }}</strong>
           </div>
         </div>

@@ -17,6 +17,10 @@ import {
   type HouseTagItem,
 } from '@/api/house'
 import { searchCommunities, type CommunityItem } from '@/api/community'
+import {
+  calculateHouseDeposit,
+  HOUSE_PAYMENT_OPTIONS,
+} from '@/utils/housePayment'
 
 interface ImageItem {
   uid: string
@@ -26,7 +30,6 @@ interface ImageItem {
 
 interface HouseForm extends Omit<CreateHouseRequest, 'price' | 'imageUrls'> {
   price: number | undefined
-  deposit?: number
 }
 
 const UPLOAD_LIMITS = {
@@ -40,8 +43,8 @@ const router = useRouter()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const houseForm = reactive<HouseForm>({
-  title: '', coverImage: '', location: '', communityId: '', landlordId: '',
-  price: undefined, deposit: undefined, rentType: 'long_rent', address: '', building: '',
+  title: '', coverImage: '', location: '', communityId: '',
+  price: undefined, rentType: 'long_rent', address: '', building: '',
   unit: '', room: '', paymentMethod: '押一付一', roomType: '', area: undefined,
   floor: '', orientation: '', decoration: '', availableDate: '', metro: '', description: '',
   isSmartLockSupported: false, isSelfViewingSupported: false,
@@ -84,6 +87,9 @@ async function loadDefaultCommunities() {
 const hasCover = computed(() => images.value.length > 0)
 const coverUrl = computed(() => images.value[0]?.url ?? '')
 const canAddMore = computed(() => images.value.length < UPLOAD_LIMITS.maxTotal)
+const calculatedDeposit = computed(() =>
+  calculateHouseDeposit(houseForm.price, houseForm.paymentMethod),
+)
 
 function generateUid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -161,7 +167,6 @@ const rules: FormRules<HouseForm> = {
   title: [{ required: true, message: '请输入房源标题', trigger: 'blur' }],
   location: [{ required: true, message: '请输入区域或商圈', trigger: 'blur' }],
   communityId: [{ required: true, message: '请选择小区', trigger: 'change' }],
-  landlordId: [{ required: true, message: '请输入房东用户 ID', trigger: 'blur' }],
   price: [{ required: true, message: '请输入月租金', trigger: 'change' }],
   rentType: [{ required: true, message: '请选择租赁类型', trigger: 'change' }],
 }
@@ -204,7 +209,7 @@ async function handleSubmit() {
       coverImage: coverUrl.value,
       imageUrls,
       price: Math.round((houseForm.price as number) * 100),
-      deposit: houseForm.deposit == null ? undefined : Math.round(houseForm.deposit * 100),
+      deposit: Math.round(calculatedDeposit.value * 100),
       availableDate: houseForm.availableDate || undefined,
       longitude: houseForm.longitude,
       latitude: houseForm.latitude,
@@ -287,8 +292,8 @@ onMounted(fetchDictionaries)
               <el-form-item label="房源标题" prop="title" class="span-two"><el-input v-model="houseForm.title" maxlength="80" show-word-limit placeholder="例如：中央公园旁精装两居" /></el-form-item>
               <el-form-item label="租赁类型" prop="rentType"><el-select v-model="houseForm.rentType"><el-option label="长租" value="long_rent" /><el-option label="短租" value="short_rent" /><el-option label="民宿" value="homestay" /><el-option label="推荐" value="recommended" /></el-select></el-form-item>
               <el-form-item label="月租金（元）" prop="price"><el-input-number v-model="houseForm.price" :min="0" :max="1000000" :step="100" controls-position="right" /></el-form-item>
-              <el-form-item label="押金（元）"><el-input-number v-model="houseForm.deposit" :min="0" :max="1000000" :step="100" controls-position="right" /></el-form-item>
-              <el-form-item label="付款方式"><el-select v-model="houseForm.paymentMethod" allow-create filterable><el-option label="押一付一" value="押一付一" /><el-option label="押一付三" value="押一付三" /><el-option label="半年付" value="半年付" /></el-select></el-form-item>
+              <el-form-item label="押金（自动计算）"><el-input-number :model-value="calculatedDeposit" disabled controls-position="right" /><div class="field-hint">根据付款方式中的押金月数自动计算</div></el-form-item>
+              <el-form-item label="付款方式"><el-select v-model="houseForm.paymentMethod"><el-option v-for="item in HOUSE_PAYMENT_OPTIONS" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
               <el-form-item label="户型"><el-input v-model="houseForm.roomType" placeholder="例如：2室1厅1卫" /></el-form-item>
               <el-form-item label="面积（㎡）"><el-input-number v-model="houseForm.area" :min="0" :precision="1" controls-position="right" /></el-form-item>
             </div>
@@ -433,7 +438,13 @@ onMounted(fetchDictionaries)
 
           <el-card class="surface-card" shadow="never">
             <template #header><strong class="table-header__title">房源归属</strong></template>
-            <el-form-item label="房东用户 ID" prop="landlordId"><el-input v-model="houseForm.landlordId" placeholder="后端暂未提供房东选择接口" /></el-form-item>
+            <el-alert
+              title="平台自营房源"
+              description="创建后由服务端自动绑定平台出租主体，无需填写房东 ID。"
+              type="info"
+              show-icon
+              :closable="false"
+            />
           </el-card>
 
           <el-card class="surface-card" shadow="never">
@@ -460,6 +471,7 @@ onMounted(fetchDictionaries)
 .form-main, .form-aside { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .form-grid { display: grid; gap: 0 18px; }.form-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }.span-two { grid-column: 1 / -1; }
 .el-select, .el-input-number, .el-date-editor { width: 100%; }
+.field-hint { margin-top: 4px; color: #86928c; font-size: 11px; line-height: 1.4; }
 
 // Cover upload
 .cover-upload-area {

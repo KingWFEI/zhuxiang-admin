@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { OfficeBuilding, Plus, Refresh, Search } from '@element-plus/icons-vue'
 
 import PageHeader from '@/components/PageHeader.vue'
-import { getHouseList, offlineHouse, onlineHouse, publishHouse, type HouseItem, type LockDeviceView } from '@/api/house'
+import {
+  downloadPropertyCertificate,
+  getHouseList,
+  getPropertyCertificateHistory,
+  offlineHouse,
+  onlineHouse,
+  publishHouse,
+  reviewLandlordHouse,
+  type HouseItem,
+  type LockDeviceView,
+  type PropertyCertificateView,
+} from '@/api/house'
 import { formatDateTime, formatFenCurrency } from '@/utils/format'
 
 const router = useRouter()
@@ -20,9 +31,15 @@ const pagination = reactive({ page: 1, pageSize: 10 })
 const publishingIds = ref<Set<string>>(new Set())
 const offliningIds = ref<Set<string>>(new Set())
 const onliningIds = ref<Set<string>>(new Set())
+const certificateLoading = ref(false)
+const certificateHistory = ref<PropertyCertificateView[]>([])
+const certificatePreviewUrl = ref('')
+const reviewingIds = ref<Set<string>>(new Set())
 
 const statusOptions = [
   { label: '草稿', value: 'draft' },
+  { label: '待审核', value: 'pendingReview' },
+  { label: '审核驳回', value: 'rejected' },
   { label: '可租', value: 'available' },
   { label: '已被预定', value: 'reserved' },
   { label: '已租', value: 'rented' },
@@ -36,10 +53,16 @@ const rentTypeOptions = [
 ]
 const statusMap: Record<string, { label: string; type: 'success' | 'warning' | 'info' | 'danger' }> = {
   draft: { label: '草稿', type: 'info' },
+  pendingReview: { label: '待审核', type: 'warning' },
+  rejected: { label: '审核驳回', type: 'danger' },
   available: { label: '可租', type: 'success' },
   reserved: { label: '已被预定', type: 'warning' },
   rented: { label: '已租', type: 'danger' },
   offline: { label: '下架', type: 'info' },
+}
+const sourceMap: Record<HouseItem['sourceType'], { label: string; type: 'primary' | 'success' }> = {
+  PLATFORM: { label: '平台自营', type: 'primary' },
+  LANDLORD: { label: '个人房源', type: 'success' },
 }
 
 const filteredList = computed(() => {
@@ -64,7 +87,20 @@ async function fetchHouseList() {
 
 function handleSearch() { pagination.page = 1 }
 function handleReset() { Object.assign(searchForm, { keyword: '', status: '', rentType: '' }); pagination.page = 1 }
-function openHouseDrawer(house: HouseItem) { currentHouse.value = house; houseDrawerVisible.value = true }
+async function openHouseDrawer(house: HouseItem) {
+  currentHouse.value = house
+  houseDrawerVisible.value = true
+  certificateHistory.value = []
+  releaseCertificatePreview()
+  certificateLoading.value = true
+  try {
+    certificateHistory.value = await getPropertyCertificateHistory(house.id)
+    const current = certificateHistory.value.find((item) => item.current)
+    if (current) await showCertificate(current)
+  } finally {
+    certificateLoading.value = false
+  }
+}
 function openLockDrawer(lock: LockDeviceView) { currentLock.value = lock; lockDrawerVisible.value = true }
 function openEditPage(house: HouseItem) {
   router.push(`/houses/${house.id}/edit`)
@@ -124,7 +160,69 @@ async function handleOnline(house: HouseItem) {
   }
 }
 
+function releaseCertificatePreview() {
+  if (certificatePreviewUrl.value) {
+    URL.revokeObjectURL(certificatePreviewUrl.value)
+    certificatePreviewUrl.value = ''
+  }
+}
+
+async function showCertificate(certificate: PropertyCertificateView) {
+  const house = currentHouse.value
+  if (!house) return
+  certificateLoading.value = true
+  releaseCertificatePreview()
+  try {
+    const blob = await downloadPropertyCertificate(house.id, certificate.id)
+    certificatePreviewUrl.value = URL.createObjectURL(blob)
+  } finally {
+    certificateLoading.value = false
+  }
+}
+
+async function handleApprove(house: HouseItem) {
+  await ElMessageBox.confirm(`确认通过房源“${house.title}”的审核吗？通过后将立即对租客公开。`, '审核通过', {
+    type: 'warning',
+    confirmButtonText: '确认通过',
+    cancelButtonText: '取消',
+  })
+  reviewingIds.value = new Set(reviewingIds.value).add(house.id)
+  try {
+    await reviewLandlordHouse(house.id, { action: 'APPROVE' })
+    ElMessage.success('房源审核已通过')
+    houseDrawerVisible.value = false
+    await fetchHouseList()
+  } finally {
+    const nextIds = new Set(reviewingIds.value)
+    nextIds.delete(house.id)
+    reviewingIds.value = nextIds
+  }
+}
+
+async function handleReject(house: HouseItem) {
+  const { value } = await ElMessageBox.prompt('请填写驳回原因，房东修改后可重新提交。', '驳回房源', {
+    type: 'warning',
+    inputType: 'textarea',
+    inputPlaceholder: '例如：房产证照片模糊，无法核对权属信息',
+    inputValidator: (input) => input.trim().length > 0 || '驳回原因不能为空',
+    confirmButtonText: '确认驳回',
+    cancelButtonText: '取消',
+  })
+  reviewingIds.value = new Set(reviewingIds.value).add(house.id)
+  try {
+    await reviewLandlordHouse(house.id, { action: 'REJECT', remark: value.trim() })
+    ElMessage.success('房源已驳回')
+    houseDrawerVisible.value = false
+    await fetchHouseList()
+  } finally {
+    const nextIds = new Set(reviewingIds.value)
+    nextIds.delete(house.id)
+    reviewingIds.value = nextIds
+  }
+}
+
 onMounted(fetchHouseList)
+onBeforeUnmount(releaseCertificatePreview)
 </script>
 
 <template>
@@ -160,6 +258,21 @@ onMounted(fetchHouseList)
         <el-table-column label="月租" width="130"><template #default="{ row }"><span class="currency-text">{{ formatFenCurrency(row.price) }}</span></template></el-table-column>
         <el-table-column prop="area" label="面积(㎡)" width="100" />
         <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="statusMap[row.status]?.type || 'info'" size="small">{{ statusMap[row.status]?.label || row.status }}</el-tag></template></el-table-column>
+        <el-table-column label="房源来源" width="110">
+          <template #default="{ row }">
+            <el-tag :type="sourceMap[row.sourceType]?.type || 'info'" size="small">
+              {{ sourceMap[row.sourceType]?.label || '未知来源' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="房产证" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.propertyCertificate" :type="row.propertyCertificate.auditStatus === 'approved' ? 'success' : row.propertyCertificate.auditStatus === 'rejected' ? 'danger' : 'warning'" size="small">
+              {{ row.propertyCertificate.auditStatus === 'approved' ? '已通过' : row.propertyCertificate.auditStatus === 'rejected' ? '已驳回' : '待审核' }}
+            </el-tag>
+            <span v-else class="muted-text">未上传</span>
+          </template>
+        </el-table-column>
         <el-table-column label="智能门锁" width="150">
           <template #default="{ row }">
             <el-button
@@ -185,10 +298,19 @@ onMounted(fetchHouseList)
         <el-table-column prop="viewCount" label="浏览" width="90" sortable />
         <el-table-column prop="favoriteCount" label="收藏" width="90" sortable />
         <el-table-column label="录入时间" width="175"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="270" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openHouseDrawer(row)">查看</el-button>
             <el-button link type="primary" @click="openEditPage(row)">编辑</el-button>
+            <el-button
+              v-if="row.status === 'pendingReview'"
+              link
+              type="danger"
+              :loading="reviewingIds.has(row.id)"
+              @click="openHouseDrawer(row)"
+            >
+              审核
+            </el-button>
             <el-button
               v-if="row.status === 'draft'"
               link
@@ -233,9 +355,46 @@ onMounted(fetchHouseList)
           <el-descriptions-item label="户型面积">{{ currentHouse.roomType || '-' }} · {{ currentHouse.area || '-' }}㎡</el-descriptions-item>
           <el-descriptions-item label="月租押金">{{ formatFenCurrency(currentHouse.price) }} / 押金 {{ formatFenCurrency(currentHouse.deposit) }}</el-descriptions-item>
           <el-descriptions-item label="付款方式">{{ currentHouse.paymentMethod || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="房源来源">
+            <el-tag :type="sourceMap[currentHouse.sourceType]?.type || 'info'" size="small">
+              {{ sourceMap[currentHouse.sourceType]?.label || '未知来源' }}
+            </el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="房东 ID">{{ currentHouse.landlordId }}</el-descriptions-item>
+          <el-descriptions-item label="审核状态">{{ statusMap[currentHouse.status]?.label || currentHouse.status }}</el-descriptions-item>
           <el-descriptions-item label="房源说明">{{ currentHouse.description || '-' }}</el-descriptions-item>
         </el-descriptions>
+        <section class="certificate-section">
+          <div class="certificate-section__header">
+            <h3>房产证明材料</h3>
+            <el-tag v-if="currentHouse.propertyCertificate" :type="currentHouse.propertyCertificate.auditStatus === 'approved' ? 'success' : currentHouse.propertyCertificate.auditStatus === 'rejected' ? 'danger' : 'warning'">
+              {{ currentHouse.propertyCertificate.auditStatus === 'approved' ? '已通过' : currentHouse.propertyCertificate.auditStatus === 'rejected' ? '已驳回' : '待审核' }}
+            </el-tag>
+          </div>
+          <div v-loading="certificateLoading" class="certificate-preview">
+            <el-image v-if="certificatePreviewUrl" :src="certificatePreviewUrl" fit="contain" :preview-src-list="[certificatePreviewUrl]" />
+            <el-empty v-else description="尚未上传房产证" :image-size="72" />
+          </div>
+          <el-table v-if="certificateHistory.length" :data="certificateHistory" size="small" border>
+            <el-table-column prop="originalName" label="文件" min-width="150" show-overflow-tooltip />
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">{{ row.auditStatus === 'approved' ? '已通过' : row.auditStatus === 'rejected' ? '已驳回' : '待审核' }}</template>
+            </el-table-column>
+            <el-table-column label="上传时间" width="165"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
+            <el-table-column label="操作" width="72"><template #default="{ row }"><el-button link type="primary" @click="showCertificate(row)">查看</el-button></template></el-table-column>
+          </el-table>
+          <el-alert
+            v-if="currentHouse.propertyCertificate?.reviewRemark"
+            class="certificate-remark"
+            type="error"
+            :closable="false"
+            :title="`驳回原因：${currentHouse.propertyCertificate.reviewRemark}`"
+          />
+          <div v-if="currentHouse.status === 'pendingReview'" class="certificate-actions">
+            <el-button type="danger" plain :loading="reviewingIds.has(currentHouse.id)" @click="handleReject(currentHouse)">驳回</el-button>
+            <el-button type="success" :loading="reviewingIds.has(currentHouse.id)" @click="handleApprove(currentHouse)">审核通过并上架</el-button>
+          </div>
+        </section>
       </template>
     </el-drawer>
 
@@ -259,4 +418,12 @@ onMounted(fetchHouseList)
 .house-cell strong, .house-cell span, .house-cell small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .house-cell strong { font-size: 13px; }.house-cell span { margin-top: 3px; color: #66736d; font-size: 12px; }.house-cell small { margin-top: 2px; color: #9aa49f; font-size: 10px; }
 .detail-cover { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; background: #eef2f0; }.detail-title { margin: 16px 0; font-size: 20px; letter-spacing: 0; }
+.certificate-section { margin-top: 22px; }
+.certificate-section__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.certificate-section__header h3 { margin: 0; font-size: 16px; }
+.certificate-preview { display: grid; min-height: 220px; place-items: center; overflow: hidden; border: 1px solid #dfe7e3; border-radius: 6px; background: #f7f9f8; }
+.certificate-preview .el-image { width: 100%; height: 360px; }
+.certificate-section .el-table { margin-top: 12px; }
+.certificate-remark { margin-top: 12px; }
+.certificate-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 </style>
