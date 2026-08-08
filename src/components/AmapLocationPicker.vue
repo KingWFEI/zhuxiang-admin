@@ -155,16 +155,22 @@ async function reverseGeocodeAddress(lng: number, lat: number) {
     // 提取五级地址分量
     const comp = result.regeocode?.addressComponent
     selectedAddressComponent.value = {
-      province: (comp as Record<string, unknown>)?.province as string || '',
-      city: (comp as Record<string, unknown>)?.city as string || '',
-      district: (comp as Record<string, unknown>)?.district as string || '',
-      township: (comp as Record<string, unknown>)?.township as string || '',
+      province: normalizeAddressPart((comp as Record<string, unknown>)?.province),
+      city: normalizeAddressPart((comp as Record<string, unknown>)?.city),
+      district: normalizeAddressPart((comp as Record<string, unknown>)?.district),
+      township: normalizeAddressPart((comp as Record<string, unknown>)?.township),
       neighborhood: extractNeighborhoodName((comp as Record<string, unknown>)?.neighborhood),
     }
   } catch {
     selectedAddress.value = `${lng.toFixed(6)}, ${lat.toFixed(6)}`
     selectedAddressComponent.value = null
   }
+}
+
+function normalizeAddressPart(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) return value.find(item => typeof item === 'string')?.trim() ?? ''
+  return ''
 }
 
 function extractNeighborhoodName(val: unknown): string {
@@ -250,7 +256,7 @@ function onSearchKeydown(e: KeyboardEvent) {
 function handleConfirm() {
   if (!selectedPosition.value) return
   const comp = selectedAddressComponent.value
-  emit('confirm', {
+  const payload: LocationConfirmPayload = {
     lng: selectedPosition.value.lng,
     lat: selectedPosition.value.lat,
     address: selectedAddress.value,
@@ -259,7 +265,9 @@ function handleConfirm() {
     district: comp?.district ?? '',
     township: comp?.township ?? '',
     neighborhood: comp?.neighborhood ?? '',
-  })
+  }
+  console.info('[AMAP_LOCATION_SELECTED]', payload)
+  emit('confirm', payload)
   handleClose()
 }
 

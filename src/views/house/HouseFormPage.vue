@@ -11,12 +11,15 @@ import {
   createHouse,
   getFacilityDictionary,
   getHouseTagDictionary,
+  getEnabledHouseRoomTypes,
   uploadHouseImage,
   type CreateHouseRequest,
   type FacilityItem,
   type HouseTagItem,
+  type HouseOption,
 } from '@/api/house'
 import { searchCommunities, type CommunityItem } from '@/api/community'
+import { listAdminRegions, type RegionItem } from '@/api/region'
 import {
   calculateHouseDeposit,
   HOUSE_PAYMENT_OPTIONS,
@@ -44,7 +47,7 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const houseForm = reactive<HouseForm>({
   title: '', coverImage: '', location: '', communityId: '',
-  price: undefined, rentType: 'long_rent', address: '', building: '',
+  price: undefined, rentMode: 'WHOLE_RENT', rentType: 'LONG_RENT', address: '', building: '',
   unit: '', room: '', paymentMethod: '押一付一', roomType: '', area: undefined,
   floor: '', orientation: '', decoration: '', availableDate: '', metro: '', description: '',
   isSmartLockSupported: false, isSelfViewingSupported: false,
@@ -60,10 +63,25 @@ const extraUploading = ref(false)
 
 const facilities = ref<FacilityItem[]>([])
 const tags = ref<HouseTagItem[]>([])
+const roomTypes = ref<HouseOption[]>([])
 const facilityLoading = ref(false)
 const tagLoading = ref(false)
+const roomTypeLoading = ref(false)
 const pickingLocation = ref(false)
 const geoInfo = ref<LocationConfirmPayload | null>(null)
+const regions = ref<RegionItem[]>([])
+const selectedCityId = ref('')
+const selectedDistrictId = ref('')
+const cityOptions = computed(() => regions.value.filter(item => item.level === 'city' && item.enabled))
+const districtOptions = computed(() => regions.value.filter(item => item.parentId === selectedCityId.value && item.level === 'district' && item.enabled))
+const selectedCity = computed(() => regions.value.find(item => item.id === selectedCityId.value))
+const selectedDistrict = computed(() => regions.value.find(item => item.id === selectedDistrictId.value))
+function syncLocation() {
+  const city = selectedCity.value?.name || ''
+  const district = selectedDistrict.value?.name || ''
+  houseForm.location = city && district ? `${city} · ${district}` : city || district
+}
+function onDistrictChange() { syncLocation() }
 
 const communityLoading = ref(false)
 const communityOptions = ref<CommunityItem[]>([])
@@ -165,10 +183,12 @@ function onExtraFileChange(e: Event) {
 
 const rules: FormRules<HouseForm> = {
   title: [{ required: true, message: '请输入房源标题', trigger: 'blur' }],
-  location: [{ required: true, message: '请输入区域或商圈', trigger: 'blur' }],
+  location: [{ required: true, message: '请选择房源区域', trigger: 'change' }],
   communityId: [{ required: true, message: '请选择小区', trigger: 'change' }],
   price: [{ required: true, message: '请输入月租金', trigger: 'change' }],
   rentType: [{ required: true, message: '请选择租赁类型', trigger: 'change' }],
+  rentMode: [{ required: true, message: '请选择出租方式', trigger: 'change' }],
+  roomType: [{ required: true, message: '请选择户型', trigger: 'change' }],
 }
 
 function validateImages(): boolean {
@@ -183,8 +203,14 @@ async function handleLocationConfirm(payload: LocationConfirmPayload) {
   houseForm.longitude = payload.lng
   houseForm.latitude = payload.lat
   geoInfo.value = payload
-  // 区域或商圈：城市 · 区县
-  houseForm.location = `${payload.city} · ${payload.district}`
+  const cityName = (payload.city || payload.province || '').trim()
+  const city = cityOptions.value.find(item =>
+    item.name === cityName || item.name.replace(/市$/, '') === cityName.replace(/市$/, ''),
+  )
+  selectedCityId.value = city?.id || ''
+  selectedDistrictId.value = ''
+  syncLocation()
+  if (cityName && !city) ElMessage.warning(`城市“${cityName}”尚未在行政区域配置中，请先配置该城市`)
   // 详细地址：直接使用高德返回的完整格式化地址
   houseForm.address = payload.address || [payload.province, payload.city, payload.district, payload.township, payload.neighborhood]
     .filter(Boolean)
@@ -194,6 +220,10 @@ async function handleLocationConfirm(payload: LocationConfirmPayload) {
 async function handleSubmit(configureInspection = false) {
   if (submitting.value) return
   if (!validateImages()) return
+  if (!selectedCityId.value || !selectedDistrictId.value) {
+    ElMessage.error('请选择房源所属城市和区县')
+    return
+  }
   if (!validateFacilityTags()) return
   if (houseForm.longitude == null || houseForm.latitude == null) {
     ElMessage.error('请先在地图上选择房源地址')
@@ -214,8 +244,8 @@ async function handleSubmit(configureInspection = false) {
       longitude: houseForm.longitude,
       latitude: houseForm.latitude,
       province: geoInfo.value?.province,
-      city: geoInfo.value?.city,
-      district: geoInfo.value?.district,
+      city: selectedCity.value?.name,
+      district: selectedDistrict.value?.name,
       township: geoInfo.value?.township,
       neighborhood: geoInfo.value?.neighborhood,
     }
@@ -271,13 +301,22 @@ function openInspectionTemplateForNewHouse() {
 async function fetchDictionaries() {
   facilityLoading.value = true
   tagLoading.value = true
+  roomTypeLoading.value = true
   try {
-    const [facData, tagData] = await Promise.all([getFacilityDictionary(), getHouseTagDictionary()])
+    const [facData, tagData, roomTypeData, regionData] = await Promise.all([
+      getFacilityDictionary(),
+      getHouseTagDictionary(),
+      getEnabledHouseRoomTypes(),
+      listAdminRegions(),
+    ])
     facilities.value = facData.filter(f => f.enabled)
     tags.value = tagData.filter(t => t.enabled)
+    roomTypes.value = roomTypeData
+    regions.value = regionData
   } finally {
     facilityLoading.value = false
     tagLoading.value = false
+    roomTypeLoading.value = false
   }
 }
 
@@ -298,11 +337,16 @@ onMounted(fetchDictionaries)
             <template #header><strong class="table-header__title">基础信息</strong></template>
             <div class="form-grid form-grid--two">
               <el-form-item label="房源标题" prop="title" class="span-two"><el-input v-model="houseForm.title" maxlength="80" show-word-limit placeholder="例如：中央公园旁精装两居" /></el-form-item>
-              <el-form-item label="租赁类型" prop="rentType"><el-select v-model="houseForm.rentType"><el-option label="长租" value="long_rent" /><el-option label="短租" value="short_rent" /><el-option label="民宿" value="homestay" /><el-option label="推荐" value="recommended" /></el-select></el-form-item>
+              <el-form-item label="出租方式" prop="rentMode"><el-select v-model="houseForm.rentMode"><el-option label="整租" value="WHOLE_RENT" /><el-option label="合租" value="SHARED_RENT" /></el-select></el-form-item>
+              <el-form-item label="租赁类型" prop="rentType"><el-select v-model="houseForm.rentType"><el-option label="长租" value="LONG_RENT" /><el-option label="短租" value="SHORT_RENT" /><el-option label="民宿" value="HOMESTAY" /></el-select></el-form-item>
               <el-form-item label="月租金（元）" prop="price"><el-input-number v-model="houseForm.price" :min="0" :max="1000000" :step="100" controls-position="right" /></el-form-item>
               <el-form-item label="押金（自动计算）"><el-input-number :model-value="calculatedDeposit" disabled controls-position="right" /><div class="field-hint">根据付款方式中的押金月数自动计算</div></el-form-item>
               <el-form-item label="付款方式"><el-select v-model="houseForm.paymentMethod"><el-option v-for="item in HOUSE_PAYMENT_OPTIONS" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
-              <el-form-item label="户型"><el-input v-model="houseForm.roomType" placeholder="例如：2室1厅1卫" /></el-form-item>
+              <el-form-item label="户型" prop="roomType">
+                <el-select v-model="houseForm.roomType" :loading="roomTypeLoading" placeholder="请选择户型" filterable>
+                  <el-option v-for="item in roomTypes" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
               <el-form-item label="面积（㎡）"><el-input-number v-model="houseForm.area" :min="0" :precision="1" controls-position="right" /></el-form-item>
             </div>
           </el-card>
@@ -323,9 +367,9 @@ onMounted(fetchDictionaries)
                 <span class="coord-info__detail">{{ geoInfo.province }} {{ geoInfo.city }} {{ geoInfo.district }} {{ geoInfo.township }} {{ geoInfo.neighborhood }}</span>
                 <span class="coord-info__coords">（{{ (houseForm.longitude ?? 0).toFixed(6) }}, {{ (houseForm.latitude ?? 0).toFixed(6) }}）</span>
               </div>
-              <el-form-item label="区域或商圈" prop="location">
-                <el-input v-model="houseForm.location" disabled placeholder="选择地址后自动填充" />
-              </el-form-item>
+              <el-form-item label="城市" required><el-select v-model="selectedCityId" disabled placeholder="请先在地图选择地址"><el-option v-for="item in cityOptions" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+              <el-form-item label="区县" required><el-select v-model="selectedDistrictId" filterable :disabled="!selectedCityId" placeholder="请选择区县" @change="onDistrictChange"><el-option v-for="item in districtOptions" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+              <el-form-item label="房源区域" prop="location"><el-input v-model="houseForm.location" disabled /></el-form-item>
               <el-form-item label="小区" prop="communityId">
                 <el-select
                   v-model="houseForm.communityId"

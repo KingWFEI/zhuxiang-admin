@@ -26,7 +26,7 @@ const houseDrawerVisible = ref(false)
 const currentHouse = ref<HouseItem | null>(null)
 const lockDrawerVisible = ref(false)
 const currentLock = ref<LockDeviceView | null>(null)
-const searchForm = reactive({ keyword: '', status: '', rentType: '' })
+const searchForm = reactive({ keyword: '', status: '', rentMode: '', rentType: '' })
 const pagination = reactive({ page: 1, pageSize: 10 })
 const publishingIds = ref<Set<string>>(new Set())
 const offliningIds = ref<Set<string>>(new Set())
@@ -46,11 +46,16 @@ const statusOptions = [
   { label: '下架', value: 'offline' },
 ]
 const rentTypeOptions = [
-  { label: '长租', value: 'long_rent' },
-  { label: '短租', value: 'short_rent' },
-  { label: '民宿', value: 'homestay' },
-  { label: '推荐', value: 'recommended' },
+  { label: '长租', value: 'LONG_RENT' },
+  { label: '短租', value: 'SHORT_RENT' },
+  { label: '民宿', value: 'HOMESTAY' },
 ]
+const rentModeOptions = [
+  { label: '整租', value: 'WHOLE_RENT' },
+  { label: '合租', value: 'SHARED_RENT' },
+]
+const rentTypeLabels: Record<string, string> = Object.fromEntries(rentTypeOptions.map((item) => [item.value, item.label]))
+const rentModeLabels: Record<string, string> = Object.fromEntries(rentModeOptions.map((item) => [item.value, item.label]))
 const statusMap: Record<string, { label: string; type: 'success' | 'warning' | 'info' | 'danger' }> = {
   draft: { label: '草稿', type: 'info' },
   pendingReview: { label: '待审核', type: 'warning' },
@@ -70,8 +75,9 @@ const filteredList = computed(() => {
   return houseList.value.filter((house) => {
     const matchesKeyword = !keyword || [house.title, house.location, house.address, house.roomType].some((value) => value?.toLowerCase().includes(keyword))
     const matchesStatus = !searchForm.status || house.status === searchForm.status
+    const matchesRentMode = !searchForm.rentMode || house.rentMode === searchForm.rentMode
     const matchesRentType = !searchForm.rentType || house.rentType === searchForm.rentType
-    return matchesKeyword && matchesStatus && matchesRentType
+    return matchesKeyword && matchesStatus && matchesRentMode && matchesRentType
   })
 })
 
@@ -86,7 +92,7 @@ async function fetchHouseList() {
 }
 
 function handleSearch() { pagination.page = 1 }
-function handleReset() { Object.assign(searchForm, { keyword: '', status: '', rentType: '' }); pagination.page = 1 }
+function handleReset() { Object.assign(searchForm, { keyword: '', status: '', rentMode: '', rentType: '' }); pagination.page = 1 }
 async function openHouseDrawer(house: HouseItem) {
   currentHouse.value = house
   houseDrawerVisible.value = true
@@ -239,6 +245,7 @@ onBeforeUnmount(releaseCertificatePreview)
       <el-form :model="searchForm" inline @submit.prevent="handleSearch">
         <el-form-item label="关键词"><el-input v-model="searchForm.keyword" clearable placeholder="标题、区域、地址或户型" :prefix-icon="Search" @keyup.enter="handleSearch" /></el-form-item>
         <el-form-item label="状态"><el-select v-model="searchForm.status" clearable placeholder="全部状态"><el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
+        <el-form-item label="出租方式"><el-select v-model="searchForm.rentMode" clearable placeholder="全部方式"><el-option v-for="item in rentModeOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
         <el-form-item label="租赁类型"><el-select v-model="searchForm.rentType" clearable placeholder="全部类型"><el-option v-for="item in rentTypeOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
         <el-form-item><el-button type="primary" @click="handleSearch">查询</el-button><el-button @click="handleReset">重置</el-button></el-form-item>
       </el-form>
@@ -257,6 +264,8 @@ onBeforeUnmount(releaseCertificatePreview)
         </el-table-column>
         <el-table-column label="月租" width="130"><template #default="{ row }"><span class="currency-text">{{ formatFenCurrency(row.price) }}</span></template></el-table-column>
         <el-table-column prop="area" label="面积(㎡)" width="100" />
+        <el-table-column label="出租方式" width="90"><template #default="{ row }">{{ rentModeLabels[row.rentMode] || row.rentMode }}</template></el-table-column>
+        <el-table-column label="租赁类型" width="90"><template #default="{ row }">{{ rentTypeLabels[row.rentType] || row.rentType }}</template></el-table-column>
         <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="statusMap[row.status]?.type || 'info'" size="small">{{ statusMap[row.status]?.label || row.status }}</el-tag></template></el-table-column>
         <el-table-column label="房源来源" width="110">
           <template #default="{ row }">
@@ -353,6 +362,8 @@ onBeforeUnmount(releaseCertificatePreview)
           <el-descriptions-item label="位置">{{ currentHouse.location }} {{ currentHouse.address }}</el-descriptions-item>
           <el-descriptions-item label="房间">{{ currentHouse.building }} {{ currentHouse.unit }} {{ currentHouse.room }}</el-descriptions-item>
           <el-descriptions-item label="户型面积">{{ currentHouse.roomType || '-' }} · {{ currentHouse.area || '-' }}㎡</el-descriptions-item>
+          <el-descriptions-item label="出租方式">{{ rentModeLabels[currentHouse.rentMode] || currentHouse.rentMode }}</el-descriptions-item>
+          <el-descriptions-item label="租赁类型">{{ rentTypeLabels[currentHouse.rentType] || currentHouse.rentType }}</el-descriptions-item>
           <el-descriptions-item label="月租押金">{{ formatFenCurrency(currentHouse.price) }} / 押金 {{ formatFenCurrency(currentHouse.deposit) }}</el-descriptions-item>
           <el-descriptions-item label="付款方式">{{ currentHouse.paymentMethod || '-' }}</el-descriptions-item>
           <el-descriptions-item label="房源来源">

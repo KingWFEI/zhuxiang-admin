@@ -61,6 +61,24 @@ export interface LockDeviceView {
   batteryLevel: number | null
 }
 
+export interface HouseRoomTypeItem {
+  id: string
+  name: string
+  sortOrder: number
+  enabled: boolean
+}
+
+export interface HouseOption {
+  label: string
+  value: string
+}
+
+export interface HouseRoomTypePayload {
+  name: string
+  sortOrder: number
+  enabled: boolean
+}
+
 export interface PropertyCertificateView {
   id: string
   houseId: string
@@ -75,6 +93,9 @@ export interface PropertyCertificateView {
   reviewedAt: string | null
   createdAt: string
 }
+
+export type HouseRentMode = 'WHOLE_RENT' | 'SHARED_RENT'
+export type HouseRentType = 'LONG_RENT' | 'SHORT_RENT' | 'HOMESTAY'
 
 export interface HouseItem {
   id: string
@@ -98,7 +119,8 @@ export interface HouseItem {
   availableDate: string | null
   metro: string | null
   description: string | null
-  rentType: string
+  rentMode: HouseRentMode
+  rentType: HouseRentType
   status: string
   sourceType: 'PLATFORM' | 'LANDLORD'
   createdBy: string | null
@@ -128,7 +150,8 @@ export interface CreateHouseRequest {
   location: string
   communityId: string
   price: number
-  rentType: string
+  rentMode: HouseRentMode
+  rentType: HouseRentType
   facilityIds: string[]
   tagIds: string[]
   address?: string
@@ -137,7 +160,7 @@ export interface CreateHouseRequest {
   room?: string
   deposit?: number
   paymentMethod?: string
-  roomType?: string
+  roomType: string
   area?: number
   floor?: string
   orientation?: string
@@ -163,7 +186,8 @@ export interface UpdateHouseRequest {
   location?: string
   communityId?: string
   price?: number
-  rentType?: string
+  rentMode?: HouseRentMode
+  rentType?: HouseRentType
   facilityIds?: string[]
   tagIds?: string[]
   address?: string
@@ -306,6 +330,32 @@ export async function updateHouseTag(id: string, data: UpdateHouseTagPayload) {
 
 export async function deleteHouseTag(id: string) {
   const response = await request.delete<never, ApiResponse<boolean>>(`/admin/house-tags/${id}`)
+  return unwrapApiResponse(response)
+}
+
+// 户型字典
+export async function getHouseRoomTypeDictionary() {
+  const response = await request.get<never, ApiResponse<HouseRoomTypeItem[]>>('/admin/house-room-types')
+  return unwrapApiResponse(response)
+}
+
+export async function getEnabledHouseRoomTypes() {
+  const response = await request.get<never, ApiResponse<HouseOption[]>>('/houses/room-types')
+  return unwrapApiResponse(response)
+}
+
+export async function createHouseRoomType(data: HouseRoomTypePayload) {
+  const response = await request.post<never, ApiResponse<HouseRoomTypeItem>>('/admin/house-room-types', data)
+  return unwrapApiResponse(response)
+}
+
+export async function updateHouseRoomType(id: string, data: HouseRoomTypePayload) {
+  const response = await request.put<never, ApiResponse<HouseRoomTypeItem>>(`/admin/house-room-types/${id}`, data)
+  return unwrapApiResponse(response)
+}
+
+export async function deleteHouseRoomType(id: string) {
+  const response = await request.delete<never, ApiResponse<boolean>>(`/admin/house-room-types/${id}`)
   return unwrapApiResponse(response)
 }
 

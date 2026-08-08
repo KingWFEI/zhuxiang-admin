@@ -63,10 +63,26 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '设施与标签配置', source: 'real' },
       },
       {
+        path: 'houses/room-types',
+        name: 'HouseRoomTypeConfig',
+        component: () => import('@/views/house/RoomTypeConfigPage.vue'),
+        meta: {
+          title: '户型配置',
+          source: 'real',
+          allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+        },
+      },
+      {
         path: 'communities',
         name: 'CommunityList',
         component: () => import('@/views/community/CommunityListPage.vue'),
         meta: { title: '小区管理', source: 'real' },
+      },
+      {
+        path: 'regions',
+        name: 'RegionConfig',
+        component: () => import('@/views/system/RegionConfigPage.vue'),
+        meta: { title: '行政区域配置', source: 'real', allowedRoles: ['ADMIN', 'HOUSEKEEPER'] },
       },
       {
         path: 'immersive-tour/debug',
@@ -109,6 +125,16 @@ export const routes: RouteRecordRaw[] = [
         name: 'UserList',
         component: () => import('@/views/user/UserListPage.vue'),
         meta: { title: '用户管理', source: 'real', permission: 'user:list' },
+      },
+      {
+        path: 'users/landlord-auth',
+        name: 'LandlordAuthReview',
+        component: () => import('@/views/user/LandlordAuthReviewPage.vue'),
+        meta: {
+          title: '房东认证审核',
+          source: 'real',
+          allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+        },
       },
       {
         path: 'orders',
@@ -197,6 +223,16 @@ export const routes: RouteRecordRaw[] = [
         name: 'RepairList',
         component: () => import('@/views/repair/RepairListPage.vue'),
         meta: { title: '报修管理', source: 'real', permission: 'repair:list' },
+      },
+      {
+        path: 'advertisements',
+        name: 'AdvertisementList',
+        component: () => import('@/views/advertisement/AdvertisementListPage.vue'),
+        meta: {
+          title: '广告管理',
+          source: 'real',
+          allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+        },
       },
       {
         path: 'system',
