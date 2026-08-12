@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
 import { ArrowLeft, DocumentAdd, Link, Refresh, UploadFilled } from '@element-plus/icons-vue'
@@ -10,6 +10,7 @@ import {
   syncTemplateComponents,
   uploadTemplateSourceFile,
   type ContractTemplateDetail,
+  type ContractTemplateBusinessType,
 } from '@/api/contractTemplate'
 
 const router = useRouter()
@@ -21,15 +22,33 @@ const syncing = ref(false)
 const draft = ref<ContractTemplateDetail | null>(null)
 const sourceFile = ref<File | null>(null)
 const componentsFound = ref(0)
-const form = reactive({
-  businessType: 'HOUSE_LEASE',
-  templateCode: 'HOUSE_LEASE_CONTRACT',
-  templateName: '房屋租赁合同',
+const form = reactive<{
+  businessType: ContractTemplateBusinessType | ''
+  templateCode: string
+  templateName: string
+  environment: 'SANDBOX' | 'PRODUCTION'
+  versionNote: string
+}>({
+  businessType: '',
+  templateCode: '',
+  templateName: '',
   environment: 'SANDBOX' as 'SANDBOX' | 'PRODUCTION',
   versionNote: '',
 })
 
+watch(
+  () => form.businessType,
+  (businessType) => {
+    form.templateCode = businessType === 'HOUSE_LEASE'
+      ? 'HOUSE_LEASE_CONTRACT'
+      : businessType === 'HOUSE_LEASE_PLATFORM'
+        ? 'PLATFORM_HOUSE_LEASE_CONTRACT'
+        : ''
+  },
+)
+
 const rules: FormRules = {
+  businessType: [{ required: true, message: '请选择模板类型', trigger: 'change' }],
   templateName: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   templateCode: [
     { required: true, message: '请输入模板编码', trigger: 'blur' },
@@ -61,7 +80,10 @@ async function createDraft() {
   if (!valid) return
   saving.value = true
   try {
-    draft.value = await createContractTemplate({ ...form })
+    draft.value = await createContractTemplate({
+      ...form,
+      businessType: form.businessType as ContractTemplateBusinessType,
+    })
     step.value = 1
     ElMessage.success('模板草稿已创建')
   } finally {
@@ -120,9 +142,14 @@ async function syncComponents() {
 
       <div v-if="step === 0" class="step-content form-step">
         <el-form ref="formRef" :model="form" :rules="rules" label-width="118px">
+          <el-form-item label="模板类型" prop="businessType">
+            <el-select v-model="form.businessType" placeholder="请选择模板类型" style="width: 100%">
+              <el-option label="个人房东合同" value="HOUSE_LEASE" />
+              <el-option label="平台自营合同" value="HOUSE_LEASE_PLATFORM" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="模板名称" prop="templateName"><el-input v-model="form.templateName" maxlength="100" /></el-form-item>
           <el-form-item label="模板编码" prop="templateCode"><el-input v-model="form.templateCode" maxlength="100" /></el-form-item>
-          <el-form-item label="业务类型"><el-select v-model="form.businessType"><el-option label="房屋租赁合同" value="HOUSE_LEASE" /></el-select></el-form-item>
           <el-form-item label="e签宝环境" prop="environment">
             <el-radio-group v-model="form.environment">
               <el-radio value="SANDBOX">沙箱环境</el-radio>

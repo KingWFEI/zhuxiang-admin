@@ -21,6 +21,8 @@ export type MappingMode =
 
 export type ValidationLevel = 'ERROR' | 'WARNING'
 
+export type ContractTemplateBusinessType = 'HOUSE_LEASE' | 'HOUSE_LEASE_PLATFORM'
+
 export interface ContractTemplateSummary {
   id: string
   businessType: string
@@ -116,7 +118,7 @@ export interface TemplatePreview {
 }
 
 export interface CreateTemplatePayload {
-  businessType: string
+  businessType: ContractTemplateBusinessType
   templateCode: string
   templateName: string
   environment: 'SANDBOX' | 'PRODUCTION'
@@ -149,6 +151,7 @@ export async function listContractTemplates(params: {
   pageSize: number
   keyword?: string
   status?: TemplateStatus | ''
+  businessType?: ContractTemplateBusinessType
 }) {
   const response = await request.get<never, ApiResponse<PageData<ContractTemplateSummary>>>(
     '/admin/contract-templates',

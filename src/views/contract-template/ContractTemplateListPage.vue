@@ -58,6 +58,14 @@ async function fetchRows() {
   }
 }
 
+function openCreate() {
+  void router.push('/contracts/templates/create')
+}
+
+function templateRoute(row: ContractTemplateSummary, configure = false) {
+  return `/contracts/templates/${row.id}${configure ? '/configure' : ''}`
+}
+
 function search() {
   query.page = 1
   void fetchRows()
@@ -98,7 +106,7 @@ onMounted(fetchRows)
     <PageHeader title="合同模板管理" description="管理合同底稿、e签宝控件、字段映射、模板校验和生产发布。">
       <template #actions>
         <el-button :icon="Refresh" :loading="loading" @click="fetchRows">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="router.push('/contracts/templates/create')">
+        <el-button type="primary" :icon="Plus" @click="openCreate">
           新建模板
         </el-button>
       </template>
@@ -136,6 +144,11 @@ onMounted(fetchRows)
             </div>
           </template>
         </el-table-column>
+        <el-table-column label="模板类型" width="130">
+          <template #default="{ row }">
+            {{ row.businessType === 'HOUSE_LEASE_PLATFORM' ? '平台自营合同' : '个人房东合同' }}
+          </template>
+        </el-table-column>
         <el-table-column label="环境" width="90">
           <template #default="{ row }">{{ row.environment === 'PRODUCTION' ? '正式' : '沙箱' }}</template>
         </el-table-column>
@@ -165,13 +178,13 @@ onMounted(fetchRows)
         </el-table-column>
         <el-table-column label="操作" width="330" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" :icon="View" @click="router.push(`/contracts/templates/${row.id}`)">详情</el-button>
+            <el-button link type="primary" :icon="View" @click="router.push(templateRoute(row))">详情</el-button>
             <el-button
               v-if="row.status !== 'ACTIVE'"
               link
               type="primary"
               :icon="Setting"
-              @click="router.push(`/contracts/templates/${row.id}/configure`)"
+              @click="router.push(templateRoute(row, true))"
             >
               配置
             </el-button>

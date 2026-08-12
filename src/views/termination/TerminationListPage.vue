@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
@@ -8,6 +8,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import { getLeaseList } from '@/api/lease'
 import {
   approveTermination,
+  cancelTerminationByAdmin,
   completeTermination,
   confirmTerminationSettlement,
   getTerminationDetail,
@@ -25,10 +26,11 @@ const router = useRouter()
 const actionLoading = ref(false)
 const drawerVisible = ref(false)
 const actionDialogVisible = ref(false)
-const actionMode = ref<'reject' | 'supplement' | 'settlement' | ''>('')
+const actionMode = ref<'reject' | 'supplement' | 'settlement' | 'cancel' | ''>('')
 const terminationList = ref<TerminationApplication[]>([])
 const currentApplication = ref<TerminationApplication | null>(null)
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
+let statusRefreshTimer: ReturnType<typeof setInterval> | undefined
 const searchForm = reactive<{ keyword: string; status: TerminationStatus | '' }>({
   keyword: '',
   status: '',
@@ -36,17 +38,37 @@ const searchForm = reactive<{ keyword: string; status: TerminationStatus | '' }>
 const actionForm = reactive({
   rejectReason: '',
   supplementReason: '',
+  cancelReason: '',
   settlementAmount: 0,
   refundAmount: 0,
+  adjustmentReason: '',
   remark: '',
+})
+
+const depositAmount = computed(() => currentApplication.value?.depositAmount ?? 0)
+const unpaidAmount = computed(() => currentApplication.value?.unpaidAmount ?? 0)
+const suggestedRefundAmount = computed(() => Math.max(0, depositAmount.value - unpaidAmount.value))
+const finalDeductionAmount = computed(() =>
+  Math.max(0, depositAmount.value - actionForm.refundAmount),
+)
+const refundAdjusted = computed(() => actionForm.refundAmount !== suggestedRefundAmount.value)
+const refundAmountYuan = computed({
+  get: () => actionForm.refundAmount / 100,
+  set: (value: number | undefined) => {
+    actionForm.refundAmount = Math.round((value ?? 0) * 100)
+  },
 })
 
 const statusOptions: Array<{ label: string; value: TerminationStatus }> = [
   { label: '待审核', value: 'pending_review' },
+  { label: '待上传验房照片', value: 'pending_photos' },
   { label: '待补充材料', value: 'need_supplement' },
   { label: '待验房', value: 'inspection_pending' },
   { label: '待结算', value: 'settlement_pending' },
   { label: '待退款', value: 'refund_pending' },
+  { label: '退款异常', value: 'refund_failed' },
+  { label: '待发起合同解约', value: 'rescission_pending' },
+  { label: '解约协议签署中', value: 'rescission_signing' },
   { label: '已完成', value: 'completed' },
   { label: '已驳回', value: 'rejected' },
   { label: '已撤销', value: 'cancelled' },
@@ -57,10 +79,14 @@ const statusMap: Record<
   { label: string; type: 'warning' | 'success' | 'info' | 'danger' }
 > = {
   pending_review: { label: '待审核', type: 'warning' },
+  pending_photos: { label: '待上传验房照片', type: 'warning' },
   need_supplement: { label: '待补充材料', type: 'warning' },
   inspection_pending: { label: '待验房', type: 'info' },
   settlement_pending: { label: '待结算', type: 'warning' },
   refund_pending: { label: '待退款', type: 'warning' },
+  refund_failed: { label: '退款异常', type: 'danger' },
+  rescission_pending: { label: '待发起合同解约', type: 'warning' },
+  rescission_signing: { label: '解约协议签署中', type: 'warning' },
   completed: { label: '已完成', type: 'success' },
   rejected: { label: '已驳回', type: 'danger' },
   cancelled: { label: '已撤销', type: 'info' },
@@ -70,6 +96,7 @@ const actionTitle = computed(() => {
   if (actionMode.value === 'reject') return '驳回退租申请'
   if (actionMode.value === 'supplement') return '要求补充材料'
   if (actionMode.value === 'settlement') return '确认退租结算'
+  if (actionMode.value === 'cancel') return '撤销退租申请'
   return '处理退租申请'
 })
 
@@ -122,13 +149,34 @@ async function openDrawer(row: TerminationApplication) {
   }
 }
 
-function openAction(mode: 'reject' | 'supplement' | 'settlement', row: TerminationApplication) {
-  currentApplication.value = row
+async function openAction(
+  mode: 'reject' | 'supplement' | 'settlement' | 'cancel',
+  row: TerminationApplication,
+) {
+  let application = row
+  if (mode === 'settlement') {
+    actionLoading.value = true
+    try {
+      application = await getTerminationDetail(row.id)
+    } finally {
+      actionLoading.value = false
+    }
+  }
+  currentApplication.value = application
   actionMode.value = mode
   actionForm.rejectReason = ''
   actionForm.supplementReason = ''
-  actionForm.settlementAmount = settlementAmountOf(row)
-  actionForm.refundAmount = row.refundAmount ?? 0
+  actionForm.cancelReason = ''
+  actionForm.settlementAmount = settlementAmountOf(application)
+  const referenceRefund = Math.max(
+    0,
+    (application.depositAmount ?? 0) - (application.unpaidAmount ?? 0),
+  )
+  actionForm.refundAmount =
+    application.recommendedRefundAmount == null
+      ? referenceRefund
+      : (application.refundAmount ?? referenceRefund)
+  actionForm.adjustmentReason = application.refundAdjustmentReason ?? ''
   actionForm.remark = ''
   actionDialogVisible.value = true
 }
@@ -179,6 +227,25 @@ async function submitAction() {
     ElMessage.warning('请填写补充材料说明')
     return
   }
+  if (actionMode.value === 'cancel' && !actionForm.cancelReason.trim()) {
+    ElMessage.warning('请填写撤销原因')
+    return
+  }
+  if (
+    actionMode.value === 'settlement' &&
+    refundAdjusted.value &&
+    !actionForm.adjustmentReason.trim()
+  ) {
+    ElMessage.warning('最终退款金额与参考退款不一致，请填写调整原因')
+    return
+  }
+  if (actionMode.value === 'cancel') {
+    await ElMessageBox.confirm(
+      '撤销后本次退租流程将终止，原租约继续有效；验房照片和操作记录仍会保留。确认撤销吗？',
+      '确认撤销退租',
+      { type: 'warning', confirmButtonText: '确认撤销', cancelButtonText: '返回' },
+    )
+  }
 
   actionLoading.value = true
   try {
@@ -192,11 +259,35 @@ async function submitAction() {
       })
       ElMessage.success('已通知租客补充材料')
     }
+    if (actionMode.value === 'cancel') {
+      await cancelTerminationByAdmin(application.id, {
+        cancelReason: actionForm.cancelReason.trim(),
+      })
+      ElMessage.success('退租申请已撤销，原租约继续有效')
+    }
     if (actionMode.value === 'settlement') {
+      const deductionAmount = finalDeductionAmount.value
+      const deductionDescription =
+        actionForm.adjustmentReason.trim() || actionForm.remark.trim() || '退租结算扣款'
       await confirmTerminationSettlement(application.id, {
-        settlementAmount: actionForm.settlementAmount,
+        settlementAmount: deductionAmount,
         refundAmount: actionForm.refundAmount,
+        adjustmentReason: actionForm.adjustmentReason.trim() || undefined,
         remark: actionForm.remark.trim() || undefined,
+        deductions:
+          deductionAmount > 0
+            ? [
+                {
+                  deductionType:
+                    unpaidAmount.value > 0 && deductionAmount === unpaidAmount.value
+                      ? 'bill_arrears'
+                      : 'other',
+                  amount: deductionAmount,
+                  description: deductionDescription,
+                  evidenceUrls: [],
+                },
+              ]
+            : [],
       })
       ElMessage.success('结算已确认')
     }
@@ -221,7 +312,11 @@ function canReview(row: TerminationApplication) {
 }
 
 function canSettle(row: TerminationApplication) {
-  return row.status === 'inspection_pending' || row.status === 'settlement_pending'
+  return row.status === 'settlement_pending'
+}
+
+function canCancel(row: TerminationApplication) {
+  return row.status === 'pending_photos' || row.status === 'inspection_pending'
 }
 
 function canComplete(row: TerminationApplication) {
@@ -252,7 +347,20 @@ function settlementAmountOf(row: TerminationApplication) {
   return row.settlementAmount ?? row.totalDeduction ?? 0
 }
 
-onMounted(fetchTerminationList)
+onMounted(() => {
+  fetchTerminationList()
+  statusRefreshTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible' || loading.value || actionLoading.value) return
+    fetchTerminationList()
+    if (drawerVisible.value && currentApplication.value) {
+      refreshCurrent(currentApplication.value.id)
+    }
+  }, 15_000)
+})
+
+onBeforeUnmount(() => {
+  if (statusRefreshTimer) clearInterval(statusRefreshTimer)
+})
 </script>
 
 <template>
@@ -262,7 +370,6 @@ onMounted(fetchTerminationList)
         <el-button :icon="Refresh" @click="fetchTerminationList">刷新</el-button>
       </template>
     </PageHeader>
-
 
     <el-card class="surface-card" shadow="never">
       <el-form :model="searchForm" inline @submit.prevent="handleSearch">
@@ -373,6 +480,9 @@ onMounted(fetchTerminationList)
             <el-button v-if="canReview(row)" link type="danger" @click="openAction('reject', row)">
               驳回
             </el-button>
+            <el-button v-if="canCancel(row)" link type="danger" @click="openAction('cancel', row)">
+              撤销退租
+            </el-button>
             <el-button
               v-if="canSettle(row)"
               link
@@ -418,14 +528,10 @@ onMounted(fetchTerminationList)
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="房源">
-            {{
-              currentApplication.houseName || '-'
-            }}
+            {{ currentApplication.houseName || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="合同编号">
-            {{
-              currentApplication.contractNo || '-'
-            }}
+            {{ currentApplication.contractNo || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="租客">
             {{ currentApplication.tenantName || currentApplication.contactName || '-' }}（{{
@@ -433,24 +539,16 @@ onMounted(fetchTerminationList)
             }}）
           </el-descriptions-item>
           <el-descriptions-item label="期望退租日期">
-            {{
-              currentApplication.expectedMoveOutDate || '-'
-            }}
+            {{ currentApplication.expectedMoveOutDate || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="是否已搬离">
-            {{
-              currentApplication.hasMovedOut ? '是' : '否'
-            }}
+            {{ currentApplication.hasMovedOut ? '是' : '否' }}
           </el-descriptions-item>
           <el-descriptions-item label="退租原因">
-            {{
-              currentApplication.reason || '-'
-            }}
+            {{ currentApplication.reason || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="备注">
-            {{
-              currentApplication.remark || '-'
-            }}
+            {{ currentApplication.remark || '-' }}
           </el-descriptions-item>
           <el-descriptions-item v-if="currentApplication.rejectReason" label="驳回原因">
             {{ currentApplication.rejectReason }}
@@ -458,20 +556,26 @@ onMounted(fetchTerminationList)
           <el-descriptions-item v-if="currentApplication.supplementReason" label="补充材料说明">
             {{ currentApplication.supplementReason }}
           </el-descriptions-item>
+          <el-descriptions-item v-if="currentApplication.processLastError" label="流程异常">
+            <el-text type="danger">{{ currentApplication.processLastError }}</el-text>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="currentApplication.terminationMode" label="退租完成方式">
+            {{ currentApplication.terminationMode === 'MANUAL' ? '管理端线下归档' : 'e签宝在线解约' }}
+          </el-descriptions-item>
+          <el-descriptions-item
+            v-if="currentApplication.manualTerminationReason"
+            label="直接完成原因"
+          >
+            {{ currentApplication.manualTerminationReason }}
+          </el-descriptions-item>
           <el-descriptions-item label="结算金额">
-            {{
-              formatFenCurrency(settlementAmountOf(currentApplication))
-            }}
+            {{ formatFenCurrency(settlementAmountOf(currentApplication)) }}
           </el-descriptions-item>
           <el-descriptions-item label="应退金额">
-            {{
-              formatFenCurrency(currentApplication.refundAmount)
-            }}
+            {{ formatFenCurrency(currentApplication.refundAmount) }}
           </el-descriptions-item>
           <el-descriptions-item label="申请时间">
-            {{
-              formatDateTime(currentApplication.createdAt)
-            }}
+            {{ formatDateTime(currentApplication.createdAt) }}
           </el-descriptions-item>
         </el-descriptions>
 
@@ -512,21 +616,46 @@ onMounted(fetchTerminationList)
             placeholder="例如：请补充水电表照片、房屋现状照片"
           />
         </el-form-item>
+        <el-form-item v-if="actionMode === 'cancel'" label="撤销原因" required>
+          <el-input
+            v-model="actionForm.cancelReason"
+            type="textarea"
+            :rows="4"
+            placeholder="例如：租客线下确认继续承租"
+          />
+          <div class="muted-text">撤销只终止本次退租流程，不影响原租约、账单和门锁权限。</div>
+        </el-form-item>
         <template v-if="actionMode === 'settlement'">
-          <el-form-item label="结算扣款金额">
+          <el-descriptions :column="1" border class="settlement-summary">
+            <el-descriptions-item label="原始押金">
+              <strong class="currency-text">{{ formatFenCurrency(depositAmount) }}</strong>
+            </el-descriptions-item>
+            <el-descriptions-item label="当前未缴金额">
+              {{ formatFenCurrency(unpaidAmount) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="参考退款">
+              {{ formatFenCurrency(suggestedRefundAmount) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="最终扣款合计">
+              {{ formatFenCurrency(finalDeductionAmount) }}
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-form-item label="最终退款金额（元）" required>
             <el-input-number
-              v-model="actionForm.settlementAmount"
+              v-model="refundAmountYuan"
               :min="0"
-              :step="100"
+              :max="depositAmount / 100"
+              :step="1"
+              :precision="2"
               style="width: 100%"
             />
           </el-form-item>
-          <el-form-item label="应退金额">
-            <el-input-number
-              v-model="actionForm.refundAmount"
-              :min="0"
-              :step="100"
-              style="width: 100%"
+          <el-form-item v-if="refundAdjusted" label="退款调整原因" required>
+            <el-input
+              v-model="actionForm.adjustmentReason"
+              type="textarea"
+              :rows="3"
+              placeholder="请说明最终退款与参考金额不一致的原因"
             />
           </el-form-item>
           <el-form-item label="结算备注">
@@ -590,4 +719,9 @@ onMounted(fetchTerminationList)
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+.settlement-summary {
+  margin-bottom: 18px;
+}
+
 </style>

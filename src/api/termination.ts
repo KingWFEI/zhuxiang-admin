@@ -4,10 +4,14 @@ import { unwrapApiResponse } from '@/api/types'
 
 export type TerminationStatus =
   | 'pending_review'
+  | 'pending_photos'
   | 'need_supplement'
   | 'inspection_pending'
   | 'settlement_pending'
   | 'refund_pending'
+  | 'refund_failed'
+  | 'rescission_pending'
+  | 'rescission_signing'
   | 'completed'
   | 'rejected'
   | 'cancelled'
@@ -40,7 +44,17 @@ export interface TerminationApplication {
   supplementReason?: string
   settlementAmount?: number
   totalDeduction?: number
+  depositAmount?: number
+  unpaidAmount?: number
   refundAmount?: number
+  recommendedRefundAmount?: number
+  refundAdjustmentReason?: string
+  processLastError?: string
+  terminationMode?: 'ESIGN' | 'MANUAL'
+  manualTerminationReason?: string
+  manualAgreementUrls?: string[]
+  manualCompletedBy?: string
+  manualCompletedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -60,10 +74,21 @@ export interface RequestSupplementPayload {
   supplementReason: string
 }
 
+export interface CancelTerminationPayload {
+  cancelReason: string
+}
+
 export interface ConfirmSettlementPayload {
   settlementAmount: number
   refundAmount: number
+  adjustmentReason?: string
   remark?: string
+  deductions?: Array<{
+    deductionType: 'damage' | 'cleaning' | 'rent_arrears' | 'bill_arrears' | 'other'
+    amount: number
+    description?: string
+    evidenceUrls?: string[]
+  }>
 }
 
 export async function getTerminationList(params?: TerminationListParams) {
@@ -99,6 +124,14 @@ export async function rejectTermination(id: string, data: RejectTerminationPaylo
 export async function requestTerminationSupplement(id: string, data: RequestSupplementPayload) {
   const response = await request.post<never, ApiResponse<TerminationApplication>>(
     `/admin/termination-applications/${id}/request-supplement`,
+    data,
+  )
+  return unwrapApiResponse(response)
+}
+
+export async function cancelTerminationByAdmin(id: string, data: CancelTerminationPayload) {
+  const response = await request.post<never, ApiResponse<TerminationApplication>>(
+    `/admin/termination-applications/${id}/cancel`,
     data,
   )
   return unwrapApiResponse(response)
