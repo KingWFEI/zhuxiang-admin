@@ -10,6 +10,7 @@ export interface AdvertisementItem {
   id: string
   title: string
   description: string | null
+  tag: string | null
   imageUrl: string
   targetType: AdvertisementTargetType
   targetValue: string | null
@@ -26,6 +27,7 @@ export interface AdvertisementItem {
 export interface AdvertisementPayload {
   title: string
   description?: string | null
+  tag?: string | null
   imageUrl: string
   imageFileId?: string | null
   targetType: AdvertisementTargetType
