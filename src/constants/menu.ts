@@ -1,6 +1,15 @@
 import type { Component } from 'vue'
 import type { AdminRole } from '@/api/types'
-import { DataAnalysis, Document, House, Key, Promotion, Service, Setting, User } from '@element-plus/icons-vue'
+import {
+  DataAnalysis,
+  Document,
+  House,
+  Key,
+  Promotion,
+  Service,
+  Setting,
+  User,
+} from '@element-plus/icons-vue'
 
 export interface MenuItem {
   title: string
@@ -33,7 +42,12 @@ export const menuItems: MenuItem[] = [
         allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
       },
       { title: '小区管理', path: '/communities', source: 'real' },
-      { title: '行政区域配置', path: '/regions', source: 'real', allowedRoles: ['ADMIN', 'HOUSEKEEPER'] },
+      {
+        title: '行政区域配置',
+        path: '/regions',
+        source: 'real',
+        allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+      },
       { title: '沉浸式看房管理', path: '/immersive-tour/debug', source: 'real' },
     ],
   },
@@ -58,7 +72,7 @@ export const menuItems: MenuItem[] = [
       { title: '合同管理', path: '/contracts', source: 'real' },
       { title: '合同模板管理', path: '/contracts/templates', source: 'real' },
       { title: '退租管理', path: '/terminations', source: 'real' },
-      { title: '账单管理', path: '/bills', source: 'mock' },
+      { title: '账单管理', path: '/bills', source: 'real' },
       { title: '报修管理', path: '/repairs', source: 'real' },
     ],
   },
@@ -67,7 +81,12 @@ export const menuItems: MenuItem[] = [
     icon: User,
     children: [
       { title: '用户管理', path: '/users', source: 'real' },
-      { title: '房东认证审核', path: '/users/landlord-auth', source: 'real', allowedRoles: ['ADMIN', 'HOUSEKEEPER'] },
+      {
+        title: '房东认证审核',
+        path: '/users/landlord-auth',
+        source: 'real',
+        allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+      },
       { title: '消息中心', path: '/messages', source: 'real' },
       { title: '发送系统消息', path: '/messages/send', source: 'real' },
     ],
@@ -85,13 +104,19 @@ export const menuItems: MenuItem[] = [
     icon: Promotion,
     allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
     children: [
-      { title: '广告管理', path: '/advertisements', source: 'real', allowedRoles: ['ADMIN', 'HOUSEKEEPER'] },
+      {
+        title: '广告管理',
+        path: '/advertisements',
+        source: 'real',
+        allowedRoles: ['ADMIN', 'HOUSEKEEPER'],
+      },
     ],
   },
   {
     title: '系统管理',
     path: '/system',
     icon: Setting,
-    source: 'mock',
+    source: 'real',
+    allowedRoles: ['ADMIN'],
   },
 ]

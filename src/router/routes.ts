@@ -216,7 +216,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'bills',
         name: 'BillList',
         component: () => import('@/views/bill/BillListPage.vue'),
-        meta: { title: '账单管理', source: 'mock', permission: 'bill:list' },
+        meta: { title: '账单管理', source: 'real', permission: 'bill:list' },
       },
       {
         path: 'repairs',
@@ -238,7 +238,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'system',
         name: 'SystemSettings',
         component: () => import('@/views/system/SettingsPage.vue'),
-        meta: { title: '系统管理', source: 'mock' },
+        meta: { title: '系统管理', source: 'real', allowedRoles: ['ADMIN'] },
       },
       {
         path: 'customer-service/kb',
