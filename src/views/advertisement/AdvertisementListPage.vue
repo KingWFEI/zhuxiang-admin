@@ -40,7 +40,7 @@ const houseSearching = ref(false)
 const houseSearched = ref(false)
 let houseSearchTimer: ReturnType<typeof setTimeout> | undefined
 const form = reactive<AdvertisementPayload>({
-  title: '', description: '', imageUrl: '', imageFileId: null,
+  title: '', description: '', tag: '', imageUrl: '', imageFileId: null,
   targetType: 'none', targetValue: '', position: 'home_banner',
   enabled: true, sortOrder: 0, startTime: null, endTime: null,
 })
@@ -91,6 +91,7 @@ async function openDialog(item?: AdvertisementItem) {
   editingId.value = item?.id ?? null
   form.title = item?.title ?? ''
   form.description = item?.description ?? ''
+  form.tag = item?.tag ?? ''
   form.imageUrl = item?.imageUrl ?? ''
   form.imageFileId = null
   form.targetType = item?.targetType ?? 'none'
@@ -188,12 +189,17 @@ async function save() {
     ElMessage.warning(form.targetType === 'house' ? '请从搜索结果中选择房源' : '请填写跳转目标')
     return
   }
+  if (form.position === 'home_banner' && !form.tag?.trim()) {
+    ElMessage.warning('请填写首页 Banner 标签')
+    return
+  }
   saving.value = true
   try {
     const payload: AdvertisementPayload = {
       ...form,
       title: form.title.trim(),
       description: form.description?.trim() || null,
+      tag: form.position === 'home_banner' ? form.tag?.trim() : null,
       targetValue: form.targetType === 'none' ? null : form.targetValue?.trim(),
     }
     if (editingId.value) {
@@ -268,7 +274,7 @@ onMounted(load)
         <el-table-column label="广告内容" min-width="330">
           <template #default="{ row }">
             <div class="ad-cell"><el-image :src="row.imageUrl" fit="cover" class="ad-thumb"><template #error><div class="image-error">暂无图片</div></template></el-image>
-              <div class="ad-copy"><strong>{{ row.title }}</strong><span>{{ row.description || '暂无描述' }}</span></div></div>
+              <div class="ad-copy"><strong>{{ row.title }}</strong><span><el-tag v-if="row.tag" size="small" effect="plain">{{ row.tag }}</el-tag> {{ row.description || '暂无描述' }}</span></div></div>
           </template>
         </el-table-column>
         <el-table-column label="位置" width="130"><template #default="{ row }"><el-tag effect="plain">{{ positionLabel(row.position) }}</el-tag></template></el-table-column>
@@ -290,6 +296,7 @@ onMounted(load)
           <el-form-item label="广告位置" prop="position"><el-radio-group v-model="form.position"><el-radio-button value="home_banner">首页 Banner</el-radio-button><el-radio-button value="home_feed">首页信息流</el-radio-button></el-radio-group></el-form-item>
         </div>
         <el-form-item label="广告描述"><el-input v-model="form.description" type="textarea" :rows="2" maxlength="500" show-word-limit placeholder="可选，用一句话说明活动内容" /></el-form-item>
+        <el-form-item v-if="form.position === 'home_banner'" label="Banner 标签" prop="tag"><el-input v-model="form.tag" maxlength="20" show-word-limit placeholder="例如：限时特惠、品质精选" /></el-form-item>
         <el-form-item label="广告图片" prop="imageUrl">
           <el-upload class="image-uploader" :show-file-list="false" accept="image/jpeg,image/png,image/webp" :http-request="handleImageUpload">
             <el-image v-if="form.imageUrl" :src="form.imageUrl" fit="cover" class="upload-preview" />
