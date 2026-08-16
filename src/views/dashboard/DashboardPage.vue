@@ -4,42 +4,53 @@ import { useRouter } from 'vue-router'
 import { ArrowRight, Plus, Refresh } from '@element-plus/icons-vue'
 
 import PageHeader from '@/components/PageHeader.vue'
-import { getHouseList, type HouseItem } from '@/api/house'
+import { getDashboardOverview, type DashboardOverview } from '@/api/dashboard'
 import { formatDateTime, formatFenCurrency } from '@/utils/format'
 
 const router = useRouter()
 const loading = ref(false)
-const houseList = ref<HouseItem[]>([])
-const houseRequestFailed = ref(false)
+const overview = ref<DashboardOverview | null>(null)
+const requestFailed = ref(false)
 
-const houseMetrics = computed(() => {
-  const total = houseList.value.length
-  const lockBound = houseList.value.filter((house) => house.smartLockBound).length
-  const totalViews = houseList.value.reduce((sum, house) => sum + (house.viewCount || 0), 0)
-  const averageRent = total
-    ? Math.round(houseList.value.reduce((sum, house) => sum + (house.price || 0), 0) / total)
+const houseMetrics = computed(() => overview.value?.house)
+const workflow = computed(() => {
+  const data = overview.value?.workflow
+  return [
+    { label: '待生效租约', value: data?.pendingLeaseCount, meta: '合同已完成，尚未到入住日', color: '#3478a5' },
+    { label: '待处理报修', value: data?.pendingRepairCount, meta: '待受理至处理中', color: '#c64c4c' },
+    {
+      label: '今日预约',
+      value: data?.todayAppointmentCount,
+      meta: data ? `已完成 ${data.todayCompletedAppointmentCount} 单` : '',
+      color: '#6d5f9d',
+    },
+  ]
+})
+const trendMax = computed(() => Math.max(...(overview.value?.rentalTrend.map((item) => item.rentedCount) || []), 1))
+const lockCoverage = computed(() => {
+  if (requestFailed.value || !overview.value) return null
+  return overview.value.house.totalCount
+    ? Math.round((overview.value.house.smartLockBoundCount / overview.value.house.totalCount) * 100)
     : 0
-  return { total, lockBound, totalViews, averageRent }
 })
 
-const recentHouses = computed(() => houseList.value.slice(0, 5))
-const mockWorkflow = [
-  { label: '待确认租约', value: 8, change: '较昨日 +2', color: '#3478a5' },
-  { label: '本月待收账单', value: 23, change: '合计 ¥68,420', color: '#c47b1f' },
-  { label: '待处理报修', value: 5, change: '其中紧急 1 单', color: '#c64c4c' },
-  { label: '今日预约', value: 12, change: '已完成 7 单', color: '#6d5f9d' },
-]
+function healthText(value: number | null | undefined) {
+  return value == null ? '暂未提供' : `${value}%`
+}
 
-const mockTrend = [42, 54, 48, 67, 72, 63, 81, 76, 88, 92, 85, 96]
+function formatWeek(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
 
 async function fetchDashboardData() {
   loading.value = true
-  houseRequestFailed.value = false
+  requestFailed.value = false
   try {
-    houseList.value = await getHouseList()
+    overview.value = await getDashboardOverview()
   } catch {
-    houseList.value = []
-    houseRequestFailed.value = true
+    overview.value = null
+    requestFailed.value = true
   } finally {
     loading.value = false
   }
@@ -58,35 +69,82 @@ onMounted(fetchDashboardData)
     </PageHeader>
 
 
-    <el-alert v-if="houseRequestFailed" title="房源接口暂时不可用，真实指标未展示。" type="error" :closable="false" show-icon />
+    <el-alert v-if="requestFailed" title="数据看板接口请求失败，未展示任何模拟或缓存数值。" type="error" :closable="false" show-icon />
 
-    <section class="metric-grid">
+    <section class="metric-grid dashboard-metric-grid">
+      <article class="metric-card metric-card--billing">
+        <div class="billing-card__heading">
+          <span class="metric-card__label">本月账单 · 实时</span>
+          <span>
+            共
+            {{
+              requestFailed || overview?.workflow.currentMonthBillCount == null
+                ? '--'
+                : overview.workflow.currentMonthBillCount
+            }}
+            笔
+          </span>
+        </div>
+        <div class="billing-card__content">
+          <div class="billing-card__primary">
+            <span>待收账单</span>
+            <strong>{{ requestFailed ? '--' : (overview?.workflow.currentMonthOutstandingBillCount ?? 0) }}</strong>
+            <small>笔</small>
+          </div>
+          <dl>
+            <div>
+              <dt>待收金额</dt>
+              <dd>{{ requestFailed ? '--' : formatFenCurrency(overview?.workflow.currentMonthOutstandingAmount ?? 0) }}</dd>
+            </div>
+            <div>
+              <dt>已支付</dt>
+              <dd>
+                {{
+                  requestFailed || overview?.workflow.currentMonthPaidBillCount == null
+                    ? '--'
+                    : `${overview.workflow.currentMonthPaidBillCount} 笔`
+                }}
+              </dd>
+            </div>
+            <div>
+              <dt>已收金额</dt>
+              <dd>
+                {{
+                  requestFailed || overview?.workflow.currentMonthReceivedAmount == null
+                    ? '--'
+                    : formatFenCurrency(overview.workflow.currentMonthReceivedAmount)
+                }}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </article>
       <article class="metric-card">
         <span class="metric-card__label">房源总量 · 实时</span>
-        <strong class="metric-card__value">{{ houseRequestFailed ? '--' : houseMetrics.total }}</strong>
+        <strong class="metric-card__value">{{ requestFailed ? '--' : (houseMetrics?.totalCount ?? 0) }}</strong>
         <p class="metric-card__meta">当前管理范围内全部房源</p>
       </article>
       <article class="metric-card">
         <span class="metric-card__label">已绑定门锁 · 实时</span>
-        <strong class="metric-card__value">{{ houseRequestFailed ? '--' : houseMetrics.lockBound }}</strong>
-        <p class="metric-card__meta">覆盖率 {{ houseMetrics.total ? Math.round((houseMetrics.lockBound / houseMetrics.total) * 100) : 0 }}%</p>
+        <strong class="metric-card__value">{{ requestFailed ? '--' : (houseMetrics?.smartLockBoundCount ?? 0) }}</strong>
+        <p class="metric-card__meta">覆盖率 {{ houseMetrics?.totalCount ? Math.round((houseMetrics.smartLockBoundCount / houseMetrics.totalCount) * 100) : 0 }}%</p>
       </article>
       <article class="metric-card">
         <span class="metric-card__label">累计浏览 · 实时</span>
-        <strong class="metric-card__value">{{ houseRequestFailed ? '--' : houseMetrics.totalViews.toLocaleString() }}</strong>
+        <strong class="metric-card__value">{{ requestFailed ? '--' : (houseMetrics?.totalViewCount ?? 0).toLocaleString() }}</strong>
         <p class="metric-card__meta">房源页面累计访问量</p>
       </article>
       <article class="metric-card">
         <span class="metric-card__label">平均月租 · 实时</span>
-        <strong class="metric-card__value">{{ houseRequestFailed ? '--' : formatFenCurrency(houseMetrics.averageRent) }}</strong>
-        <p class="metric-card__meta">按当前房源列表计算</p>
+        <strong class="metric-card__value">{{ requestFailed ? '--' : formatFenCurrency(houseMetrics?.averageRent ?? 0) }}</strong>
+        <p class="metric-card__meta">由后端全量房源汇总</p>
       </article>
     </section>
 
     <section class="workflow-strip">
-      <article v-for="item in mockWorkflow" :key="item.label" class="workflow-item">
+      <article v-for="item in workflow" :key="item.label" class="workflow-item">
         <span class="workflow-item__dot" :style="{ backgroundColor: item.color }" />
-        <div><span>{{ item.label }}</span><strong>{{ item.value }}</strong><small>{{ item.change }} · 模拟</small></div>
+        <div><span>{{ item.label }}</span><strong>{{ item.value ?? '--' }}</strong><small>{{ item.meta }}</small></div>
       </article>
     </section>
 
@@ -94,28 +152,29 @@ onMounted(fetchDashboardData)
       <el-card class="surface-card trend-panel" shadow="never">
         <template #header>
           <div class="table-header">
-            <div><strong class="table-header__title">近 12 周出租趋势</strong><p>模拟数据 · 单位：套</p></div>
-            <el-tag type="info" effect="plain">模拟数据</el-tag>
+            <div><strong class="table-header__title">近 12 周出租趋势</strong><p>按租约开始日期统计新增生效租约 · 单位：套</p></div>
+            <el-tag type="success" effect="plain">实时汇总</el-tag>
           </div>
         </template>
         <div class="trend-chart">
-          <div v-for="(value, index) in mockTrend" :key="index" class="trend-column">
-            <span class="trend-value">{{ value }}</span>
-            <i :style="{ height: `${value}%` }" />
-            <small>W{{ index + 1 }}</small>
+          <div v-for="item in overview?.rentalTrend || []" :key="item.weekStart" class="trend-column">
+            <span class="trend-value">{{ item.rentedCount }}</span>
+            <i :style="{ height: `${Math.max((item.rentedCount / trendMax) * 100, 3)}%` }" />
+            <small>{{ formatWeek(item.weekStart) }}</small>
           </div>
         </div>
       </el-card>
 
       <el-card class="surface-card health-panel" shadow="never">
         <template #header><strong class="table-header__title">资产健康度</strong></template>
-        <div class="health-score"><strong>{{ houseMetrics.total ? Math.round((houseMetrics.lockBound / houseMetrics.total) * 100) : 0 }}</strong><span>%</span></div>
+        <div class="health-score"><strong>{{ lockCoverage ?? '--' }}</strong><span v-if="lockCoverage != null">%</span></div>
         <p>智能门锁绑定覆盖率</p>
-        <el-progress :percentage="houseMetrics.total ? Math.round((houseMetrics.lockBound / houseMetrics.total) * 100) : 0" :show-text="false" :stroke-width="8" />
+        <el-progress v-if="lockCoverage != null" :percentage="lockCoverage" :show-text="false" :stroke-width="8" />
+        <p v-else>接口不可用，暂未展示</p>
         <div class="health-list">
-          <span><i class="is-good" />房源数据完整性 <strong>92%</strong></span>
-          <span><i class="is-warning" />租约续签及时率 <strong>78% · 模拟</strong></span>
-          <span><i class="is-danger" />报修按时完成率 <strong>85% · 模拟</strong></span>
+          <span><i class="is-good" />房源数据完整性 <strong>{{ healthText(overview?.health.houseDataCompletenessRate) }}</strong></span>
+          <span><i class="is-warning" />租约续签及时率 <strong>{{ healthText(overview?.health.leaseRenewalTimelinessRate) }}</strong></span>
+          <span><i class="is-danger" />报修按时完成率 <strong>{{ healthText(overview?.health.repairOnTimeCompletionRate) }}</strong></span>
         </div>
       </el-card>
     </section>
@@ -123,11 +182,11 @@ onMounted(fetchDashboardData)
     <el-card class="surface-card" shadow="never">
       <template #header>
         <div class="table-header">
-          <div><strong class="table-header__title">最近录入房源</strong><p>真实接口数据</p></div>
+          <div><strong class="table-header__title">最近录入房源</strong><p>后端汇总接口数据</p></div>
           <el-button link type="primary" :icon="ArrowRight" @click="router.push('/houses')">查看全部</el-button>
         </div>
       </template>
-      <el-table :data="recentHouses" empty-text="暂无房源数据">
+      <el-table :data="overview?.recentHouses || []" empty-text="暂无房源数据">
         <el-table-column prop="title" label="房源" min-width="210" show-overflow-tooltip />
         <el-table-column prop="location" label="区域" min-width="110" />
         <el-table-column prop="roomType" label="户型" width="120" />
@@ -142,7 +201,7 @@ onMounted(fetchDashboardData)
 <style scoped lang="scss">
 .workflow-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid #dfe5e2;
   border-radius: 6px;
   background: white;
@@ -181,13 +240,86 @@ onMounted(fetchDashboardData)
 .is-good { background: #2e7d5b; }.is-warning { background: #c47b1f; }.is-danger { background: #c64c4c; }
 
 @media (max-width: 1100px) {
-  .workflow-strip { grid-template-columns: repeat(2, 1fr); }
-  .workflow-item:nth-child(2) { border-right: 0; }
-  .workflow-item:nth-child(-n + 2) { border-bottom: 1px solid #e5eae8; }
   .dashboard-grid { grid-template-columns: 1fr; }
 }
 
+.metric-card--billing {
+  grid-column: 1 / -1;
+  border-color: #ead7b8;
+  background: linear-gradient(120deg, #fffaf2, #fff);
+}
+
+.billing-card__heading,
+.billing-card__content,
+.billing-card__primary,
+.billing-card__content dl,
+.billing-card__content dl div {
+  display: flex;
+  align-items: center;
+}
+
+.billing-card__heading {
+  justify-content: space-between;
+}
+
+.billing-card__heading > span:last-child {
+  color: #8b6b37;
+  font-size: 12px;
+}
+
+.billing-card__content {
+  gap: 40px;
+  margin-top: 14px;
+}
+
+.billing-card__primary {
+  min-width: 180px;
+  gap: 7px;
+}
+
+.billing-card__primary > span,
+.billing-card__content dt {
+  color: #68766f;
+  font-size: 12px;
+}
+
+.billing-card__primary strong {
+  color: #a9630e;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.billing-card__primary small {
+  align-self: flex-end;
+  padding-bottom: 2px;
+  color: #7d8983;
+}
+
+.billing-card__content dl {
+  flex: 1;
+  gap: 36px;
+  margin: 0;
+}
+
+.billing-card__content dl div {
+  gap: 10px;
+}
+
+.billing-card__content dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 640px) {
+  .billing-card__content,
+  .billing-card__content dl {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
   .workflow-strip { grid-template-columns: 1fr; }
   .workflow-item { border-right: 0; border-bottom: 1px solid #e5eae8; }
   .workflow-item:last-child { border-bottom: 0; }

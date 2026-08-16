@@ -66,6 +66,13 @@ function templateRoute(row: ContractTemplateSummary, configure = false) {
   return `/contracts/templates/${row.id}${configure ? '/configure' : ''}`
 }
 
+function continueDraft(row: ContractTemplateSummary) {
+  return router.push({
+    path: '/contracts/templates/create',
+    query: { draftId: row.id },
+  })
+}
+
 function search() {
   query.page = 1
   void fetchRows()
@@ -180,7 +187,16 @@ onMounted(fetchRows)
           <template #default="{ row }">
             <el-button link type="primary" :icon="View" @click="router.push(templateRoute(row))">详情</el-button>
             <el-button
-              v-if="row.status !== 'ACTIVE'"
+              v-if="row.status === 'DRAFT'"
+              link
+              type="primary"
+              :icon="Setting"
+              @click="continueDraft(row)"
+            >
+              继续配置
+            </el-button>
+            <el-button
+              v-else-if="row.status !== 'ACTIVE'"
               link
               type="primary"
               :icon="Setting"
