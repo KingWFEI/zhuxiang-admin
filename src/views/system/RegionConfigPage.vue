@@ -17,6 +17,15 @@ const importText = ref('[\n  { "name": "成都市", "code": "510100", "level": "
 const form = reactive<RegionPayload>({ name: '', code: '', level: 'city', parentId: null, sortOrder: 0, enabled: true })
 const rules: FormRules = { name: [{ required: true, message: '请输入区域名称', trigger: 'blur' }] }
 const cities = computed(() => items.value.filter(item => item.level === 'city' && item.enabled))
+const districts = computed(() => items.value.filter(item => item.level === 'district' && item.enabled))
+const parentOptions = computed(() => {
+  const options = form.level === 'district'
+    ? cities.value
+    : form.level === 'business_area' ? districts.value : []
+  return options.filter(item => item.id !== editingId.value)
+})
+const parentLabel = computed(() => form.level === 'district' ? '上级城市' : '上级区县')
+const parentPlaceholder = computed(() => form.level === 'district' ? '请选择上级城市' : '请选择上级区县')
 type TreeRegion = RegionItem & { children?: TreeRegion[] }
 const treeItems = computed<TreeRegion[]>(() => {
   const nodes = new Map<string, TreeRegion>()
@@ -35,6 +44,11 @@ const treeItems = computed<TreeRegion[]>(() => {
   return roots
 })
 const parentName = (id: string) => items.value.find(item => item.id === id)?.name || '-'
+const parentOptionLabel = (item: RegionItem) => {
+  if (item.level !== 'district') return item.name
+  const city = item.parentId ? items.value.find(candidate => candidate.id === item.parentId) : undefined
+  return city ? `${city.name} / ${item.name}` : item.name
+}
 const levelName = (level: RegionLevel) => ({ city: '城市', district: '区县', business_area: '商圈' }[level])
 
 async function load() { loading.value = true; try { items.value = await listAdminRegions() } finally { loading.value = false } }
@@ -44,8 +58,16 @@ function openDialog(item?: RegionItem) {
   form.parentId = item?.parentId || null; form.sortOrder = item?.sortOrder ?? 0; form.enabled = item?.enabled ?? true
   dialogVisible.value = true
 }
+function handleLevelChange() {
+  form.parentId = null
+  formRef.value?.clearValidate()
+}
 async function save() {
   if (!formRef.value || !(await formRef.value.validate().catch(() => false))) return
+  if (form.level !== 'city' && !form.parentId) {
+    ElMessage.warning(`请选择${parentLabel.value}`)
+    return
+  }
   saving.value = true
   try {
     const payload = { ...form, name: form.name.trim(), parentId: form.level === 'city' ? null : form.parentId }
@@ -77,7 +99,7 @@ async function importJson() {
     <PageHeader title="行政区域配置" description="配置城市、区县和商圈层级，供找房区域筛选及本地回退使用。">
       <template #actions><el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button><el-button :icon="Upload" @click="importVisible = true">JSON导入</el-button><el-button type="primary" :icon="Plus" @click="openDialog()">新增区域</el-button></template>
     </PageHeader>
-    <el-card shadow="never" v-loading="loading">
+    <el-card v-loading="loading" shadow="never">
       <el-table :data="treeItems" row-key="id" stripe default-expand-all>
         <el-table-column prop="name" label="名称" min-width="180" />
         <el-table-column label="层级" width="110"><template #default="{ row }"><el-tag>{{ levelName(row.level) }}</el-tag></template></el-table-column>
@@ -92,8 +114,8 @@ async function importJson() {
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑区域' : '新增区域'" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="名称" prop="name"><el-input v-model="form.name" maxlength="50" placeholder="例如：成都市、锦江区" /></el-form-item>
-        <el-form-item label="层级"><el-radio-group v-model="form.level"><el-radio-button value="city">城市</el-radio-button><el-radio-button value="district">区县</el-radio-button><el-radio-button value="business_area">商圈</el-radio-button></el-radio-group></el-form-item>
-        <el-form-item v-if="form.level !== 'city'" label="上级区域" required><el-select v-model="form.parentId" placeholder="请选择上级城市" style="width: 100%"><el-option v-for="city in cities" :key="city.id" :label="city.name" :value="city.id" /></el-select></el-form-item>
+        <el-form-item label="层级"><el-radio-group v-model="form.level" @change="handleLevelChange"><el-radio-button value="city">城市</el-radio-button><el-radio-button value="district">区县</el-radio-button><el-radio-button value="business_area">商圈</el-radio-button></el-radio-group></el-form-item>
+        <el-form-item v-if="form.level !== 'city'" :label="parentLabel" required><el-select v-model="form.parentId" :placeholder="parentPlaceholder" filterable style="width: 100%"><el-option v-for="option in parentOptions" :key="option.id" :label="parentOptionLabel(option)" :value="option.id" /></el-select></el-form-item>
         <el-form-item label="行政编码"><el-input v-model="form.code" maxlength="20" placeholder="可填高德 adcode" /></el-form-item>
         <el-form-item label="排序值"><el-input-number v-model="form.sortOrder" :min="0" :max="9999" /></el-form-item>
         <el-form-item label="是否启用"><el-switch v-model="form.enabled" /></el-form-item>

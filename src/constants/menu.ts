@@ -25,7 +25,7 @@ export const menuItems: MenuItem[] = [
     title: '数据看板',
     path: '/dashboard',
     icon: DataAnalysis,
-    source: 'mixed',
+    source: 'real',
   },
   {
     title: '房源运营',

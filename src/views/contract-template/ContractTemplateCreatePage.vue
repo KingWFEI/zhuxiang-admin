@@ -1,27 +1,37 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
 import { ArrowLeft, DocumentAdd, Link, Refresh, UploadFilled } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import {
   createContractTemplate,
+  getContractTemplate,
   getTemplateCreateUrl,
+  getTemplateEditUrl,
   syncTemplateComponents,
   uploadTemplateSourceFile,
   type ContractTemplateDetail,
   type ContractTemplateBusinessType,
 } from '@/api/contractTemplate'
 
+const route = useRoute()
 const router = useRouter()
 const step = ref(0)
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const uploading = ref(false)
 const syncing = ref(false)
+const restoring = ref(false)
 const draft = ref<ContractTemplateDetail | null>(null)
 const sourceFile = ref<File | null>(null)
 const componentsFound = ref(0)
+const resumeTemplateId = computed(() => String(route.query.draftId || ''))
+const isResuming = computed(() => Boolean(resumeTemplateId.value))
+const pageTitle = computed(() => isResuming.value ? '继续配置合同模板' : '新建合同模板')
+const designerButtonText = computed(() => draft.value?.docTemplateId
+  ? '继续编辑 e签宝模板'
+  : '打开 e签宝模板制作页')
 const form = reactive<{
   businessType: ContractTemplateBusinessType | ''
   templateCode: string
@@ -39,6 +49,7 @@ const form = reactive<{
 watch(
   () => form.businessType,
   (businessType) => {
+    if (draft.value) return
     form.templateCode = businessType === 'HOUSE_LEASE'
       ? 'HOUSE_LEASE_CONTRACT'
       : businessType === 'HOUSE_LEASE_PLATFORM'
@@ -105,7 +116,9 @@ async function uploadSource() {
 
 async function openEsignDesigner() {
   if (!draft.value) return
-  const link = await getTemplateCreateUrl(draft.value.id)
+  const link = draft.value.docTemplateId
+    ? await getTemplateEditUrl(draft.value.id)
+    : await getTemplateCreateUrl(draft.value.id)
   const opened = window.open(link.longUrl || link.url, '_blank', 'noopener,noreferrer')
   if (!opened) ElMessage.warning('浏览器拦截了新窗口，请允许弹窗后重试')
 }
@@ -122,11 +135,42 @@ async function syncComponents() {
     syncing.value = false
   }
 }
+
+async function restoreDraft() {
+  if (!resumeTemplateId.value) return
+  restoring.value = true
+  try {
+    const template = await getContractTemplate(resumeTemplateId.value)
+    if (template.status !== 'DRAFT') {
+      ElMessage.warning('该模板已不处于草稿状态，已进入模板详情')
+      await router.replace(`/contracts/templates/${template.id}`)
+      return
+    }
+    draft.value = template
+    Object.assign(form, {
+      businessType: template.businessType as ContractTemplateBusinessType,
+      templateCode: template.templateCode,
+      templateName: template.templateName,
+      environment: template.environment,
+      versionNote: '',
+    })
+    componentsFound.value = template.componentCount
+    step.value = !template.sourceFileId
+      ? 1
+      : template.componentCount > 0
+        ? 3
+        : 2
+  } finally {
+    restoring.value = false
+  }
+}
+
+onMounted(restoreDraft)
 </script>
 
 <template>
-  <div class="page-container">
-    <PageHeader title="新建合同模板" description="上传 PDF 底稿，在 e签宝中配置控件，随后同步并完成业务字段映射。">
+  <div v-loading="restoring" class="page-container">
+    <PageHeader :title="pageTitle" description="上传 PDF 底稿，在 e签宝中配置控件，随后同步并完成业务字段映射。">
       <template #actions>
         <el-button :icon="ArrowLeft" @click="router.push('/contracts/templates')">返回列表</el-button>
       </template>
@@ -162,13 +206,19 @@ async function syncComponents() {
       </div>
 
       <div v-else-if="step === 1" class="step-content centered-step">
+        <el-alert
+          v-if="isResuming && draft"
+          :title="`正在继续配置：${draft.templateName} · V${draft.version}`"
+          type="info"
+          :closable="false"
+          show-icon
+        />
         <el-upload drag :auto-upload="false" :limit="1" accept="application/pdf,.pdf" :on-change="handleFileChange">
           <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
           <div class="el-upload__text">拖拽合同 PDF 到此处，或<em>点击选择</em></div>
           <template #tip><div class="el-upload__tip">仅支持 PDF，最大 50MB。上传后将作为 e签宝模板底稿。</div></template>
         </el-upload>
         <div class="step-actions">
-          <el-button @click="step = 0">上一步</el-button>
           <el-button type="primary" :disabled="!canUpload" :loading="uploading" :icon="UploadFilled" @click="uploadSource">上传底稿</el-button>
         </div>
       </div>
@@ -179,7 +229,7 @@ async function syncComponents() {
         <p>请为每个可填写控件设置唯一、稳定的 componentKey，并为甲乙方签名区设置对应 signerRole。</p>
         <el-alert title="完成控件配置并保存后，请回到本页面点击“同步控件”。" type="warning" :closable="false" show-icon />
         <div class="step-actions">
-          <el-button type="primary" :icon="Link" @click="openEsignDesigner">打开 e签宝模板制作页</el-button>
+          <el-button type="primary" :icon="Link" @click="openEsignDesigner">{{ designerButtonText }}</el-button>
           <el-button :icon="Refresh" :loading="syncing" @click="syncComponents">我已完成，立即同步控件</el-button>
         </div>
       </div>

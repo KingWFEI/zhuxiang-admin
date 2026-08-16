@@ -30,7 +30,7 @@ const summary = ref<BillSummary>({
   overdueOutstandingAmount: 0,
 })
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
-const searchForm = reactive({ keyword: '', status: '', dueDateRange: [] as string[] })
+const searchForm = reactive({ keyword: '', status: 'paid', dueDateRange: [] as string[] })
 const drawerVisible = ref(false)
 const currentBill = ref<BillItem | null>(null)
 
@@ -40,6 +40,14 @@ const statusOptions = [
   { label: '已支付', value: 'paid' },
   { label: '已逾期', value: 'overdue' },
   { label: '已取消', value: 'cancelled' },
+]
+
+const quickStatusOptions = [
+  { label: '已支付', value: 'paid' },
+  { label: '未到期', value: 'scheduled' },
+  { label: '待支付', value: 'pending' },
+  { label: '已逾期', value: 'overdue' },
+  { label: '全部', value: '' },
 ]
 
 const statusMap: Record<
@@ -97,8 +105,14 @@ function handleSearch() {
 
 function handleReset() {
   searchForm.keyword = ''
-  searchForm.status = ''
+  searchForm.status = 'paid'
   searchForm.dueDateRange = []
+  pagination.page = 1
+  fetchBillList()
+}
+
+function handleQuickStatus(status: string) {
+  searchForm.status = status
   pagination.page = 1
   fetchBillList()
 }
@@ -226,7 +240,20 @@ onMounted(refreshAll)
       <template #header>
         <div class="table-header">
           <strong class="table-header__title">账单列表</strong>
-          <span class="muted-text">共 {{ pagination.total }} 笔</span>
+          <div class="table-header__actions">
+            <span class="muted-text">共 {{ pagination.total }} 笔</span>
+            <el-button-group class="quick-filter">
+              <el-button
+                v-for="item in quickStatusOptions"
+                :key="item.value || 'all'"
+                :type="searchForm.status === item.value ? 'primary' : 'default'"
+                size="small"
+                @click="handleQuickStatus(item.value)"
+              >
+                {{ item.label }}
+              </el-button>
+            </el-button-group>
+          </div>
         </div>
       </template>
       <el-table v-loading="loading" :data="billList" border empty-text="暂无账单数据">
@@ -263,15 +290,36 @@ onMounted(refreshAll)
             }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="已收 / 待收" width="140">
+        <el-table-column label="收款情况" width="160">
           <template #default="{ row }">
             <div class="cell-stack amount-stack">
-              <span>已收 {{ formatFenCurrency(row.amountPaid) }}</span>
-              <small>待收 {{ formatFenCurrency(row.outstandingAmount) }}</small>
+              <template v-if="row.status === 'cancelled'">
+                <span class="muted-text">已取消，不计收款</span>
+              </template>
+              <template v-else-if="row.status === 'paid'">
+                <strong class="amount-received">已收 {{ formatFenCurrency(row.amountPaid) }}</strong>
+                <small class="amount-settled">已结清</small>
+              </template>
+              <template v-else>
+                <strong class="amount-outstanding">待收 {{ formatFenCurrency(row.outstandingAmount) }}</strong>
+                <small v-if="row.amountPaid > 0">已收 {{ formatFenCurrency(row.amountPaid) }}</small>
+                <small v-else>{{ row.status === 'scheduled' ? '尚未到期' : '尚未收款' }}</small>
+              </template>
             </div>
           </template>
         </el-table-column>
         <el-table-column prop="dueDate" label="到期日" width="120" />
+        <el-table-column label="支付信息" min-width="190">
+          <template #default="{ row }">
+            <div v-if="row.status === 'paid'" class="cell-stack payment-stack">
+              <span>{{ formatDateTime(row.paidAt) }}</span>
+              <small :class="{ 'muted-text': !row.paymentNo }">
+                {{ row.paymentNo || '支付单号暂缺' }}
+              </small>
+            </div>
+            <span v-else class="muted-text">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">
@@ -341,12 +389,16 @@ onMounted(refreshAll)
             </el-descriptions-item>
             <el-descriptions-item label="已缴金额">
               {{
-                formatFenCurrency(currentBill.amountPaid)
+                currentBill.status === 'cancelled'
+                  ? '—'
+                  : formatFenCurrency(currentBill.amountPaid)
               }}
             </el-descriptions-item>
             <el-descriptions-item label="待缴金额">
               {{
-                formatFenCurrency(currentBill.outstandingAmount)
+                currentBill.status === 'cancelled' || currentBill.status === 'paid'
+                  ? '—'
+                  : formatFenCurrency(currentBill.outstandingAmount)
               }}
             </el-descriptions-item>
             <el-descriptions-item label="应缴日期">{{ currentBill.dueDate }}</el-descriptions-item>
@@ -405,9 +457,39 @@ onMounted(refreshAll)
   }
 }
 
-.amount-stack small,
+.amount-outstanding,
 .metric-card--danger .metric-card__value {
   color: #c45656;
+}
+
+.amount-received,
+.amount-settled {
+  color: #2e7d5b;
+}
+
+.payment-stack small {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.table-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .table-header,
+  .table-header__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .quick-filter {
+    display: flex;
+    flex-wrap: wrap;
+  }
 }
 
 .detail-heading {
